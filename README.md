@@ -21,7 +21,7 @@
 2. ブラウザで `http://localhost:8765/broadcast.html` が開く(開かなければ、このアドレスを手で開く)
 3. 使い終わったら黒い画面を閉じる(または Ctrl+C)
 
-- `broadcast.html` をファイルとして直接開いても動きません(`localhost` 経由のときだけ動く)
+- `broadcast.html` をファイルとして直接開いたとき(`file://`)や、`localhost` 以外の場所で開いたときは、Firebase に接続せず、ログイン欄・入力欄・送信ボタンも出ません(案内の文だけが出る)。ログインも送信もできません
 - 簡易サーバー(`serve.js`)は `broadcast.html` だけを返し、このPCの中からしか接続できません
 
 ## 使い方
@@ -101,7 +101,7 @@
 
 このツールは、各社アプリの次の部分を写して作っています。アプリ側を変えたら、ツールも合わせて直してください(`broadcast.html` の該当箇所にもコメントがあります)。
 
-- 各社 `index.html` 冒頭の `firebaseConfig`(→ `COMPANIES`)
+- 各社 `index.html` 冒頭の `firebaseConfig`(→ `COMPANIES`)。projectId・authDomain・Functions のリージョンを変えたら、`broadcast.html` の `<head>` にある Content-Security-Policy の宛先(`connect-src`・`frame-src`)も直す
 - ログイン方式 `AUTH_EMAIL_DOMAIN` / `AUTH_PW_SUFFIX`
 - エディタのカテゴリ(`annCategories`)・優先度・既定値・タグの正規化(`addEdTagFromInput()`)
 - 投稿の項目(`saveAnn()` / `submitAnnPayload()` → `PAYLOAD_KEYS`・`buildPayload()`・`checkPayload()`)
@@ -135,3 +135,13 @@ node serve.js                                                         (ツール
 | `emulator/` | エミュレーターでの確認用の道具 |
 
 外部から読み込むのは gstatic の Firebase JS SDK(compat 10.14.1。各社アプリと同じ版)だけです。内容が書き換えられていたら読み込まないよう integrity を付けています。
+
+通信できる宛先は、SDK のコードで確かめた次のものだけに絞っています(`broadcast.html` の Content-Security-Policy)。
+
+| 宛先 | 用途 |
+|---|---|
+| `identitytoolkit.googleapis.com` | ログイン |
+| `securetoken.googleapis.com` | ログインの更新 |
+| `firestore.googleapis.com` | Firestore の読み書き |
+| `asia-northeast1-anzen-matomete-app.cloudfunctions.net` ほか2社分 | 人数の概算(`estimateNotifyAudience`) |
+| `127.0.0.1` / `localhost` | 検証用のエミュレーター |

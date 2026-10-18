@@ -4,8 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- 読み込み・通信先の制限。スクリプトは gstatic の Firebase SDK とこのファイル内のものだけ。
-     通信先は Firebase(googleapis / cloudfunctions)と、検証用のエミュレーター(このPC内)だけ -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src data:; connect-src https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app http://127.0.0.1:* http://localhost:*; frame-src https://*.firebaseapp.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+     通信先(connect-src)は SDK 10.14.1 のコードで確かめた次の宛先だけに絞る(ワイルドカードは使わない):
+       identitytoolkit.googleapis.com … ログイン(auth の apiHost)
+       securetoken.googleapis.com     … ログインの更新(auth の tokenApiHost)
+       firestore.googleapis.com       … Firestore の読み書き
+       asia-northeast1-{projectId}.cloudfunctions.net … 3社の Cloud Functions(人数の概算 estimateNotifyAudience)
+       127.0.0.1 / localhost          … 検証用のエミュレーター(このPC内)
+     frame-src は auth が使う場合のある各社の authDomain だけ。
+     各社の projectId・authDomain・Functions のリージョンを変えたら、ここも直すこと -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src data:; connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://asia-northeast1-anzen-matomete-app.cloudfunctions.net https://asia-northeast1-matomete-alogi.cloudfunctions.net https://asia-northeast1-matomete-meiho.cloudfunctions.net http://127.0.0.1:* http://localhost:*; frame-src https://anzen-matomete-app.firebaseapp.com https://matomete-alogi.firebaseapp.com https://matomete-meiho.firebaseapp.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>周知 一括投稿ツール</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313294B'/%3E%3Cpath d='M16 36V28l24-10v28L16 36z' fill='%23fff'/%3E%3Crect x='42' y='26' width='6' height='12' rx='2' fill='%23fff'/%3E%3C/svg%3E">
 <style>
@@ -470,6 +477,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <div class="toast" id="toast" role="status" hidden></div>
 <div id="fatal" class="fatal" hidden></div>
+<noscript><div class="fatal"><h2>JavaScript が無効です</h2><p>このツールは JavaScript を有効にしたブラウザで、start-broadcast.bat から開いてください。</p></div></noscript>
 
 <script>
 (() => {
@@ -488,6 +496,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   const WRITE_TIMEOUT_MS  = 30000;
 
   // 3社の接続先。config は各社 index.html 冒頭の firebaseConfig をそのまま写したもの。
+  // projectId・authDomain を変えたら、<head> の Content-Security-Policy(connect-src・frame-src)も直すこと。
   // emulatorPorts は検証用(?emulator=1 のときだけ使う)。emulator/ の設定と一致させること
   const COMPANIES = [
     {
@@ -569,15 +578,27 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     box.hidden = false;
   }
 
+  // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
+  // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
+  function lockOut(title, lines) {
+    ['#app', '#actionbar', '#confirm-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+      const node = $(sel);
+      if (node) node.remove();
+    });
+    $('#mode-badge').textContent = '使えません';
+    showFatal(title, lines);
+  }
+
+  // file:// で開いたとき、localhost 以外の場所で開いたとき(GitHub Pages などに置かれた場合を含む)
   if (!IS_LOCAL) {
-    showFatal('このページはここでは開けません', [
-      'start-broadcast.bat を実行して、表示された http://localhost:8765/broadcast.html から開いてください。',
-      'ファイルを直接開いたり(file://)、インターネット上に置いたりして使うことはできません。',
+    lockOut('この開き方では使えません(ログインも送信もできません)', [
+      'このPCで start-broadcast.bat を実行し、表示された http://localhost:8765/broadcast.html から開いてください。',
+      'ファイルを直接開いたとき(file://)や、localhost 以外の場所で開いたときは、Firebase に接続せず、ログインも送信もできないようにしています。',
     ]);
     return;
   }
   if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore || !firebase.functions) {
-    showFatal('Firebase SDK を読み込めませんでした', [
+    lockOut('Firebase SDK を読み込めませんでした(ログインも送信もできません)', [
       'インターネットにつながっているか確かめてから、ページを再読み込みしてください。',
       '直らない場合は、読み込んだファイルの内容が想定と違う(integrity の不一致)可能性があります。',
     ]);
