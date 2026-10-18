@@ -1,0 +1,17 @@
+# 秘密情報(このリポジトリには置かない)
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
+*.pem
+*.p12
+.env
+.env.*
+
+# エミュレーター検証の作業ファイル・ログ
+node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.log
+
+# Claude Code のローカル設定
+.claude/
