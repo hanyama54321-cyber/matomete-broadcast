@@ -501,9 +501,9 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   const COMPANIES = [
     {
       key: 'hiline', label: 'HI-LINE', color: '#1A56C4',
-      // HI-LINE 0.4.8 はお知らせのタイトル・本文を HTML のまま画面に埋め込んでいるため、
-      // < > & を含む投稿は送らない(HI-LINE 側の表示修正が入るまでの暫定措置)
-      rendersHtml: true,
+      // rendersHtml: お知らせのタイトル・本文を HTML のまま画面に埋め込む社は true にして、< > & を含む投稿を送らない。
+      // HI-LINE は 0.4.8 まで HTML のまま表示していたが、0.4.9(main 7342e93)で文字として表示するよう直ったため false
+      rendersHtml: false,
       config: {
         apiKey: 'AIzaSyBDEk7luVCDDJooPwG6BU0r1qX8GROc6rY',
         authDomain: 'anzen-matomete-app.firebaseapp.com',
@@ -911,14 +911,14 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     return typeof n === 'string' && n.trim() ? n : '';
   }
 
-  // その社に送れるかどうか(ログイン状態・HI-LINE の暫定措置・投稿者名)
+  // その社に送れるかどうか(ログイン状態・HTML のまま表示する社の除外(rendersHtml)・投稿者名)
   function eligibility(co, content) {
     if (co.phase === 'init' || co.phase === 'busy') return { ok: false, reason: '確認中です' };
     if (co.phase !== 'ready') {
       return { ok: false, reason: co.msgKind === 'blocked' ? '投稿できないコードです(ログイン欄を参照)' : '未ログイン' };
     }
     if (co.def.rendersHtml && htmlCharFields(content, co).length) {
-      return { ok: false, reason: '< > & を含むため送れません(HI-LINE はお知らせを HTML のまま表示するため、表示が崩れます)' };
+      return { ok: false, reason: `< > & を含むため送れません(${co.def.label} はお知らせを HTML のまま表示するため、表示が崩れます)` };
     }
     if (!resolveAuthorName(co, content)) {
       return { ok: false, reason: 'ログインした人の名前(users.name)が空です。投稿者名を入力してください' };
@@ -1026,10 +1026,11 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   function renderWarnings(content) {
     const box = $('#global-warnings');
     box.textContent = '';
-    const hiline = cos.find(c => c.def.rendersHtml);
-    const hit = hiline ? htmlCharFields(content, hiline) : [];
-    if (hit.length) {
-      box.append(el('div', { class: 'warn-box', text: `${hit.join('・')}に < > & が含まれています。HI-LINE はお知らせを HTML のまま表示するため表示が崩れるので、HI-LINE には送れません(HI-LINE 側の表示修正が入るまでの暫定措置)。` }));
+    for (const co of cos.filter(c => c.def.rendersHtml)) {
+      const hit = htmlCharFields(content, co);
+      if (hit.length) {
+        box.append(el('div', { class: 'warn-box', text: `${hit.join('・')}に < > & が含まれています。${co.def.label} はお知らせを HTML のまま表示するため表示が崩れるので、${co.def.label} には送れません。` }));
+      }
     }
     const leftover = /[{}｛｝]/;
     if (leftover.test(content.title.split(PLACEHOLDER).join('')) || leftover.test(content.body.split(PLACEHOLDER).join(''))) {
