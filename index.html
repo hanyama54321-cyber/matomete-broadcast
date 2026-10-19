@@ -120,6 +120,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 140px; }
 .co-form input[type="text"]::placeholder { text-transform: none; }
 .co-status { margin-top: 10px; font-size: 13px; }
 .co-status.ok { color: var(--safe); font-weight: 700; }
+.co-note { color: var(--warn); font-weight: 700; font-size: 12.5px; margin-top: 2px; }
+.co-note::before { content: "⚠ "; }
 .co-status.err { color: var(--danger); font-weight: 700; }
 .co-status.muted { color: var(--text-muted); }
 .co-actions { margin-top: 8px; }
@@ -321,7 +323,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.2.1</span>
+  <span class="ver">Ver.0.2.2</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -484,7 +486,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.2.1';
+  const TOOL_VERSION = '0.2.2';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -673,6 +675,16 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   function storageSet(key, value) {
     try { localStorage.setItem(storagePrefix + key, value); } catch (e) { /* 記憶できなくても動作には影響しない */ }
   }
+  // タブを閉じたら消える記憶(初期パスワードで入ったかどうかの印だけに使う)
+  function sessionGet(key) {
+    try { return sessionStorage.getItem(storagePrefix + key); } catch (e) { return null; }
+  }
+  function sessionSet(key, value) {
+    try { sessionStorage.setItem(storagePrefix + key, value); } catch (e) { /* 覚えられなくても注意が出ないだけ */ }
+  }
+  function sessionRemove(key) {
+    try { sessionStorage.removeItem(storagePrefix + key); } catch (e) { /* 何もしない */ }
+  }
 
   // エラーを1行の文字にする(記録用の文字が崩れないよう改行・連続した空白は詰め、長すぎるものは切る)
   const ERR_HINTS = {
@@ -774,12 +786,10 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       renderAll();
       return;
     }
-    // 初期パスワード(=コード)のままのアカウントでは投稿させない。大文字・小文字の違いだけのものも止める
-    if (pw.trim().toUpperCase() === code) {
-      setMessage(co, 'blocked', 'パスワードが初期値(コードと同じ)のままです。各社アプリのプロフィールでパスワードを変えてから使ってください');
-      renderAll();
-      return;
-    }
+    // 初期パスワード(=コード)のままでもログインはさせる(0.2.2 で南野さんの判断により変更)。
+    // その社の欄に注意を出すため、「初期パスワードで入ったコード」だけをタブ単位で覚える(パスワードは保存しない)
+    if (pw.trim().toUpperCase() === code) sessionSet('initpw:' + co.def.key, code);
+    else sessionRemove('initpw:' + co.def.key);
     setPhase(co, 'busy', 'ログイン中…');
     if (!(await co.persistenceReady)) {
       setMessage(co, 'blocked', 'ログインをタブ単位で保持する設定にできませんでした(ブラウザの設定を確認してください)。この社にはログインできません');
@@ -812,6 +822,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   async function onAuthChanged(co, user) {
     if (!user) {
       co.login = null;
+      sessionRemove('initpw:' + co.def.key);
       setPhase(co, 'out');
       return;
     }
@@ -888,6 +899,9 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       const name = co.login.name && co.login.name.trim() ? co.login.name : '(名前なし)';
       ui.status.className = 'co-status ok';
       ui.status.textContent = `ログイン中: ${name}(${co.login.code})`;
+      if (sessionGet('initpw:' + co.def.key) === co.login.code) {
+        ui.status.append(el('div', { class: 'co-note', text: '初期パスワードのままです' }));
+      }
     } else if (busy) {
       ui.status.className = 'co-status muted';
       ui.status.textContent = co.phase === 'init' ? '接続を確認中…' : co.busyText;

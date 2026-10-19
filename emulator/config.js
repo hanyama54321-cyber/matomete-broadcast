@@ -34,7 +34,7 @@ const AUTH_PW_SUFFIX = '_mtm';
 const TEST_USERS = [
   // ツールで使える管理者(パスワードを初期値から変えた想定)。本番のメンテ用コードとは別の架空のコード
   { code: 'XADM1', password: 'emu-pass-x1', user: { name: 'テスト管理者1', role: 'admin', team: null, passwordChanged: true } },
-  // 初期パスワード(=コード)のままの管理者 → ツールで止まる
+  // 初期パスワード(=コード)のままの管理者 → ログインはでき、欄に「初期パスワードのままです」と出る(0.2.2 から)
   { code: 'XADM2', password: 'XADM2', user: { name: 'テスト管理者2', role: 'admin', team: null, passwordChanged: false } },
   // 外部に開示済みのコード → ツールで止まる
   { code: 'AAAAA', password: 'emu-pass-A', user: { name: '管理者A', role: 'admin', team: null, passwordChanged: true } },
