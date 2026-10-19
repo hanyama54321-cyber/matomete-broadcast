@@ -321,7 +321,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.2.0</span>
+  <span class="ver">Ver.0.2.1</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -330,7 +330,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   <!-- 1. ログイン -->
   <section class="step" aria-labelledby="h-login">
     <h2 id="h-login"><span class="num">1</span>各社にログイン</h2>
-    <p class="hint">メンテ用の管理者コード(BBBBB か CCCCC)でログインします。パスワードは保存しません。タブを閉じると3社ともログアウトします。</p>
+    <p class="hint">メンテ用の管理者コードでログインします。パスワードは保存しません。タブを閉じると3社ともログアウトします。</p>
     <div class="co-grid" id="login-grid"></div>
   </section>
 
@@ -349,8 +349,8 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
             <label class="form-label" for="f-body">本文<span class="req">*</span></label>
             <textarea id="f-body" class="input" placeholder="お知らせの内容を入力..."></textarea>
             <div class="inline-row">
-              <button type="button" class="btn ghost small" id="btn-insert-placeholder">{会社名} を差し込む</button>
-              <span class="sub-hint" style="margin-top:0">タイトル・本文の <span class="code-chip">{会社名}</span> は、各社の名前(HI-LINE / A-LOGI / 名豊興運)に置き換わります。</span>
+              <button type="button" class="btn ghost small" id="btn-insert-text">CB名古屋 を差し込む</button>
+              <span class="sub-hint" style="margin-top:0">押すと、タイトルか本文のカーソルの位置に「CB名古屋」と入ります。入力した文字は、3社ともそのまま送られます。</span>
             </div>
           </div>
         </div>
@@ -412,7 +412,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   <!-- 3. プレビューと送信先 -->
   <section class="step" aria-labelledby="h-preview">
     <h2 id="h-preview"><span class="num">3</span>プレビューと送信先</h2>
-    <p class="hint">差し込み後の仕上がりです。社ごとに送る・送らないを選べます。</p>
+    <p class="hint">各社に届く仕上がりです(3社とも同じ文字)。社ごとに送る・送らないを選べます。</p>
     <div id="global-warnings"></div>
     <div class="co-grid" id="preview-grid"></div>
   </section>
@@ -484,14 +484,17 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.2.0';
+  const TOOL_VERSION = '0.2.1';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
   const FUNCTIONS_REGION  = 'asia-northeast1';
-  // 外部に開示済みのメンテ用コード。このツールではログインさせない
+  // 外部に開示済みのメンテ用コード。このツールではログインさせない(画面にはコード名を出さない)
   const FORBIDDEN_CODES   = ['AAAAA'];
-  const PLACEHOLDER       = '{会社名}';
+  // 「CB名古屋 を差し込む」ボタンで入れる文字。入れたものはそのまま3社に送る
+  const INSERT_TEXT       = 'CB名古屋';
+  // 0.2.0 までの差し込み記号。0.2.1 から置き換えはせず、残っていたら警告だけ出す
+  const OLD_PLACEHOLDER   = '{会社名}';
   const STORAGE_PREFIX    = 'matomete-broadcast:';
   const WRITE_TIMEOUT_MS  = 30000;
 
@@ -697,7 +700,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     category: 'work',
     priority: 'normal',
     tags: [],
-    lastFocus: 'body',   // {会社名} の差し込み先
+    lastFocus: 'body',   // 「CB名古屋 を差し込む」で入れる先
   };
   let broadcast = null;      // 直近の一括送信 { id, content, sentAt, rows: {key: {status, detail}} }
   let confirmSession = null; // 確認画面を開いている間の情報
@@ -767,7 +770,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       return;
     }
     if (FORBIDDEN_CODES.includes(code)) {
-      setMessage(co, 'blocked', `${code} は外部に開示済みのため、このツールでは使えません。BBBBB か CCCCC でログインしてください`);
+      setMessage(co, 'blocked', 'このコードはこのツールでは使えません。別のメンテ用の管理者コードでログインしてください');
       renderAll();
       return;
     }
@@ -815,7 +818,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     const code = codeFromEmail(user.email);
     if (FORBIDDEN_CODES.includes(code)) {
       await safeSignOut(co);
-      setMessage(co, 'blocked', `${code} は外部に開示済みのため、このツールでは使えません。BBBBB か CCCCC でログインしてください`);
+      setMessage(co, 'blocked', 'このコードはこのツールでは使えません。別のメンテ用の管理者コードでログインしてください');
       setPhase(co, 'out');
       return;
     }
@@ -852,7 +855,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   function buildLoginCard(co) {
     const d = co.def;
     const ui = co.ui;
-    ui.code = el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', placeholder: 'BBBBB', 'aria-label': `${d.label} のコード` });
+    ui.code = el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', 'aria-label': `${d.label} のコード` });
     ui.pw = el('input', { type: 'password', autocomplete: 'off', 'aria-label': `${d.label} のパスワード` });
     ui.loginBtn = el('button', { type: 'button', class: 'btn', text: 'ログイン', onclick: () => onLoginClick(co) });
     ui.status = el('div', { class: 'co-status' });
@@ -920,15 +923,11 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     };
   }
 
-  function forCompany(text, co) {
-    return text.split(PLACEHOLDER).join(co.def.label);
-  }
-
   function htmlCharFields(content, co) {
     const hit = [];
     const re = /[<>&]/;
-    if (re.test(forCompany(content.title, co))) hit.push('タイトル');
-    if (re.test(forCompany(content.body, co))) hit.push('本文');
+    if (re.test(content.title)) hit.push('タイトル');
+    if (re.test(content.body)) hit.push('本文');
     if (content.tags.some(t => re.test(t))) hit.push('タグ');
     return hit;
   }
@@ -1028,8 +1027,8 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       ui.pvNote.textContent = '送信先に入っています';
     }
 
-    const title = forCompany(content.title, co);
-    const body = forCompany(content.body, co);
+    const title = content.title;
+    const body = content.body;
     const cat = CATEGORIES.find(c => c.id === content.category) || CATEGORIES[4];
     const author = resolveAuthorName(co, content) || (co.phase === 'ready' ? '管理者' : '(投稿者はログイン後に決まります)');
     ui.pvAnn.className = 'pv-ann' + (content.pinned ? ' pinned' : '');
@@ -1060,9 +1059,11 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         box.append(el('div', { class: 'warn-box', text: `${hit.join('・')}に < > & が含まれています。${co.def.label} はお知らせを HTML のまま表示するため表示が崩れるので、${co.def.label} には送れません。` }));
       }
     }
-    const leftover = /[{}｛｝]/;
-    if (leftover.test(content.title.split(PLACEHOLDER).join('')) || leftover.test(content.body.split(PLACEHOLDER).join(''))) {
-      box.append(el('div', { class: 'warn-box', text: `差し込みに使えるのは ${PLACEHOLDER} だけです。それ以外の { } はそのまま表示されます。` }));
+    const oldHit = [];
+    if (content.title.includes(OLD_PLACEHOLDER)) oldHit.push('タイトル');
+    if (content.body.includes(OLD_PLACEHOLDER)) oldHit.push('本文');
+    if (oldHit.length) {
+      box.append(el('div', { class: 'warn-box', text: `${oldHit.join('・')}に ${OLD_PLACEHOLDER} があります。各社名への置き換えはしません(そのままの文字で3社に送られます)。` }));
     }
     if ($('#f-deadline').checked) {
       if (!$('#f-dl-date').value) {
@@ -1165,7 +1166,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     const grid = $('#cf-grid');
     grid.textContent = '';
     for (const co of session.targets) {
-      const title = forCompany(content.title, co);
+      const title = content.title;
       const cat = CATEGORIES.find(c => c.id === content.category) || CATEGORIES[4];
       const prio = PRIORITIES.find(x => x.id === content.priority);
       const others = [
@@ -1252,8 +1253,8 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   function buildPayload(co, content) {
     const FV = firebase.firestore.FieldValue;
     return {
-      title: forCompany(content.title, co),
-      body: forCompany(content.body, co),
+      title: content.title,
+      body: content.body,
       category: content.category,
       priority: content.priority,
       target: 'all',
@@ -1435,7 +1436,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       `周知 一括投稿(matomete-broadcast ${TOOL_VERSION}${EMULATOR ? '・エミュレーター' : ''})`,
       `一括送信ID: ${b.id}`,
       `送信開始: ${fmtNow(b.sentAt)}`,
-      `タイトル(差し込み前): ${c.title}`,
+      `タイトル: ${c.title}`,
       `カテゴリ: ${cat ? cat.label : c.category} / 必読: ${c.mustRead ? 'あり' : 'なし'} / 既読期限: ${c.readDeadline || 'なし'}`,
     ];
     for (const co of cos) {
@@ -1521,11 +1522,12 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#f-dl-fields').hidden = !$('#f-deadline').checked;
   }
 
-  function insertPlaceholder() {
+  // 最後に触ったタイトルか本文の、カーソルの位置に「CB名古屋」をそのまま入れる(選択中の文字は置き換える)
+  function insertText() {
     const target = form.lastFocus === 'title' ? $('#f-title') : $('#f-body');
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? target.value.length;
-    target.setRangeText(PLACEHOLDER, start, end, 'end');
+    target.setRangeText(INSERT_TEXT, start, end, 'end');
     target.focus();
     renderAll();
   }
@@ -1585,7 +1587,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       }
     });
     $('#f-tag-input').addEventListener('input', () => showTagError(''));
-    $('#btn-insert-placeholder').addEventListener('click', insertPlaceholder);
+    $('#btn-insert-text').addEventListener('click', insertText);
 
     $('#btn-confirm').addEventListener('click', openConfirm);
     $('#cf-cancel').addEventListener('click', closeConfirm);

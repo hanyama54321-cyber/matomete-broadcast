@@ -32,10 +32,10 @@ const AUTH_PW_SUFFIX = '_mtm';
 
 // 検証用アカウント。エミュレーターの中にだけ作る(本番のアカウント・パスワードとは無関係)
 const TEST_USERS = [
-  // ツールで使える管理者(パスワードを初期値から変えた想定)
-  { code: 'BBBBB', password: 'emu-pass-B', user: { name: '管理者B', role: 'admin', team: null, passwordChanged: true } },
+  // ツールで使える管理者(パスワードを初期値から変えた想定)。本番のメンテ用コードとは別の架空のコード
+  { code: 'XADM1', password: 'emu-pass-x1', user: { name: 'テスト管理者1', role: 'admin', team: null, passwordChanged: true } },
   // 初期パスワード(=コード)のままの管理者 → ツールで止まる
-  { code: 'CCCCC', password: 'CCCCC', user: { name: '管理者C', role: 'admin', team: null, passwordChanged: false } },
+  { code: 'XADM2', password: 'XADM2', user: { name: 'テスト管理者2', role: 'admin', team: null, passwordChanged: false } },
   // 外部に開示済みのコード → ツールで止まる
   { code: 'AAAAA', password: 'emu-pass-A', user: { name: '管理者A', role: 'admin', team: null, passwordChanged: true } },
   // 名前(name)のない管理者 → 投稿者名を入力しないと送れない
