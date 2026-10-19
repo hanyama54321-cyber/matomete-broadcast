@@ -1,11 +1,12 @@
 # 周知 一括投稿ツール(matomete-broadcast)
 
-3社(HI-LINE・A-LOGI・名豊興運)の「周知・おしらせ」に、同じお知らせを1回の操作で投稿するローカル用のツールです。
+3社(HI-LINE・A-LOGI・名豊興運)の「周知・おしらせ」に、同じお知らせを1回の操作で投稿するツールです。
 中身は「各社アプリの『投稿する』ボタンと同じ書き込みを、3社分まとめて行う」だけで、3社の Firebase 同士はつなぎません。
 
-- 版: 0.1.0(2026-10-18)
-- 使う端末: 南野さんのマイPCだけ。GitHub Pages では公開しない。会社PCでは使わない
-- 必要なもの: Node.js(このPCには入っている)と、インターネット接続
+- 版: 0.2.0(2026-10-19。0.1.0 はマイPCだけで使う版、0.2.0 から GitHub Pages でも公開)
+- 使う端末: 南野さんのマイPC(`start-broadcast.bat` で開く)と、会社ネットワーク外のPC(公開URLで開く)。会社PCでは使わない
+- 公開URL: https://hanyama54321-cyber.github.io/matomete-broadcast/
+- 必要なもの: インターネット接続。マイPCで `start-broadcast.bat` を使うときは Node.js も(マイPCには入っている)
 
 ## できること・できないこと
 
@@ -15,14 +16,19 @@
 | タイトル・本文の `{会社名}` を各社名に差し込む | 社ごとに本文を書き分ける(差し込みは `{会社名}` だけ) |
 | 結果を文字でコピー(Notion への記録用) | 投稿履歴の保存 |
 
-## 起動
+## 開き方
 
-1. `start-broadcast.bat` をダブルクリックする
-2. ブラウザで `http://localhost:8765/broadcast.html` が開く(開かなければ、このアドレスを手で開く)
-3. 使い終わったら黒い画面を閉じる(または Ctrl+C)
+動くのは次の2つの場所だけです。
 
-- `broadcast.html` をファイルとして直接開いたとき(`file://`)や、`localhost` 以外の場所で開いたときは、Firebase に接続せず、ログイン欄・入力欄・送信ボタンも出ません(案内の文だけが出る)。ログインも送信もできません
+| 使う端末 | 開き方 |
+|---|---|
+| マイPC | `start-broadcast.bat` をダブルクリックすると `http://localhost:8765/broadcast.html` が開く(開かなければ手で開く)。使い終わったら黒い画面を閉じる(または Ctrl+C) |
+| 会社ネットワーク外のPC | 公開URL https://hanyama54321-cyber.github.io/matomete-broadcast/ を開く(`broadcast.html` に移る) |
+
+- それ以外の開き方では、Firebase に接続せず、ログイン欄・入力欄・送信ボタンも出ません(案内の文だけが出る)。ログインも送信もできません。たとえば `broadcast.html` をファイルとして直接開いたとき(`file://`)、`localhost` の別のポート、`github.io` のほかのパスに置いた写し、ほかのページの中に埋め込まれたとき
+- エミュレーター接続(`?emulator=1`)は `localhost:8765` のときだけ使えます。公開URLに `?emulator` を付けると締め出されます
 - 簡易サーバー(`serve.js`)は `broadcast.html` だけを返し、このPCの中からしか接続できません
+- 公開URLで使い終わったら、タブを閉じてください(ログインはタブを閉じると消えます)
 
 ## 使い方
 
@@ -112,6 +118,7 @@
 - エディタのカテゴリ(`annCategories`)・優先度・既定値・タグの正規化(`addEdTagFromInput()`)
 - 投稿の項目(`saveAnn()` / `submitAnnPayload()` → `PAYLOAD_KEYS`・`buildPayload()`・`checkPayload()`)
 - `announcements` のルール、`onAnnouncementNotify`(タイトルを60文字で切る)、`firebase-messaging-sw.js` の通知文言、`estimateNotifyAudience` の呼び方
+- 動いてよい場所は `broadcast.html` の `judgePlace()`(`LOCAL_PORT`・`PAGES_HOST`・`PAGES_PATH`)で決めている。リポジトリ名・GitHub のアカウント名・`serve.js` のポートを変えたら、ここも直す
 - `COMPANIES` の `rendersHtml` は、お知らせを HTML のまま表示する社を `< > &` を含む投稿の送信先から外す仕組み。いまは3社とも `false`(HI-LINE は 0.4.9 で解除)。各社アプリでお知らせの表示を変えるときは、文字として表示する作り(`escHtml()`)を崩さないこと。崩れた社が出たら、その社を `true` にする
 
 ### 検証について
@@ -140,9 +147,13 @@ node serve.js                                                         (ツール
 | ファイル | 内容 |
 |---|---|
 | `broadcast.html` | ツール本体(1枚) |
-| `serve.js` | このPCの中だけで開くための簡易サーバー(依存パッケージなし) |
-| `start-broadcast.bat` | 起動用(`serve.js` を起動してブラウザを開く) |
+| `index.html` | 公開URLの直下を開いたときに `broadcast.html` へ移るだけのページ(スクリプトなし) |
+| `.nojekyll` | GitHub Pages にファイルをそのまま配らせるための空ファイル |
+| `serve.js` | マイPCの中だけで開くための簡易サーバー(依存パッケージなし) |
+| `start-broadcast.bat` | マイPCでの起動用(`serve.js` を起動してブラウザを開く) |
 | `emulator/` | エミュレーターでの確認用の道具 |
+
+このリポジトリは public で、GitHub Pages は `main` のルートをそのまま配ります。`README.md`・`emulator/` なども公開URLの下から読めます。パスワードや鍵はコミットしないこと(`emulator/config.js` のパスワードはエミュレーター専用の架空のもの)。
 
 外部から読み込むのは gstatic の Firebase JS SDK(compat 10.14.1。各社アプリと同じ版)だけです。内容が書き換えられていたら読み込まないよう integrity を付けています。
 
@@ -154,4 +165,9 @@ node serve.js                                                         (ツール
 | `securetoken.googleapis.com` | ログインの更新 |
 | `firestore.googleapis.com` | Firestore の読み書き |
 | `asia-northeast1-anzen-matomete-app.cloudfunctions.net` ほか2社分 | 人数の概算(`estimateNotifyAudience`) |
-| `127.0.0.1` / `localhost` | 検証用のエミュレーター |
+| `127.0.0.1` / `localhost` | 検証用のエミュレーター(エミュレーター接続は `localhost:8765` で開いたときだけ有効) |
+
+公開URLで使うときの注意:
+
+- 公開URLは各社アプリ(`/matomete-app/` など)と同じ `https://hanyama54321-cyber.github.io` のサイトにあり、ブラウザの保存領域を共有します。ツールのログイン情報はタブ単位で保存し、保存名(`firebase:authUser:…:hiline` など)と記憶するコードの名前(`matomete-broadcast:` で始まる)は各社アプリと重なりません。使い終わったらタブを閉じてください
+- GitHub Pages では「ほかのページへの埋め込み禁止」をヘッダーで指定できないため、`broadcast.html` が埋め込まれたことを自分で調べて締め出します

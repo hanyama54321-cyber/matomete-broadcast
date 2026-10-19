@@ -321,7 +321,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.1.0</span>
+  <span class="ver">Ver.0.2.0</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -477,14 +477,14 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <div class="toast" id="toast" role="status" hidden></div>
 <div id="fatal" class="fatal" hidden></div>
-<noscript><div class="fatal"><h2>JavaScript が無効です</h2><p>このツールは JavaScript を有効にしたブラウザで、start-broadcast.bat から開いてください。</p></div></noscript>
+<noscript><div class="fatal"><h2>JavaScript が無効です</h2><p>このツールは JavaScript を有効にしたブラウザで開いてください(マイPCでは start-broadcast.bat から、ほかのPCからは公開URLから)。</p></div></noscript>
 
 <script>
 (() => {
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.1.0';
+  const TOOL_VERSION = '0.2.0';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -564,10 +564,23 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     'tags', 'status', 'scheduledAt', 'updatedAt', 'authorUid', 'authorName', 'createdAt', 'publishedAt',
   ];
 
-  /* ===== 開き方の確認(このPCの簡易サーバー経由でだけ動かす) ===== */
+  /* ===== 開き方の確認(動いてよい場所は次の2つだけ) =====
+     local: このPCの簡易サーバー serve.js(http://localhost:8765/。127.0.0.1・[::1] も同じサーバー)
+     pages: GitHub Pages の公開URL(https://hanyama54321-cyber.github.io/matomete-broadcast/ の下)
+     それ以外(file://、別のポート、github.io のほかのパス、ほかのサイト)では何もできない状態にする */
   const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
-  const IS_LOCAL = location.protocol === 'http:' && LOCAL_HOSTS.includes(location.hostname);
-  const EMULATOR = IS_LOCAL && new URLSearchParams(location.search).get('emulator') === '1';
+  const LOCAL_PORT  = '8765';
+  const PAGES_HOST  = 'hanyama54321-cyber.github.io';
+  const PAGES_PATH  = '/matomete-broadcast/';
+  function judgePlace(loc) {
+    if (loc.protocol === 'http:' && LOCAL_HOSTS.includes(loc.hostname) && loc.port === LOCAL_PORT) return 'local';
+    if (loc.protocol === 'https:' && loc.hostname === PAGES_HOST && loc.port === '' && loc.pathname.startsWith(PAGES_PATH)) return 'pages';
+    return null;
+  }
+  const PLACE = judgePlace(location);
+  const PARAMS = new URLSearchParams(location.search);
+  // エミュレーター接続は、このPCの簡易サーバーで開いたときだけ(公開URLで emulator が付いていたら下で締め出す)
+  const EMULATOR = PLACE === 'local' && PARAMS.get('emulator') === '1';
 
   const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -589,11 +602,26 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     showFatal(title, lines);
   }
 
-  // file:// で開いたとき、localhost 以外の場所で開いたとき(GitHub Pages などに置かれた場合を含む)
-  if (!IS_LOCAL) {
+  const HOW_TO_OPEN = 'マイPCでは start-broadcast.bat から(http://localhost:8765/broadcast.html)、ほかのPCからは公開URL(https://hanyama54321-cyber.github.io/matomete-broadcast/)から開いてください。';
+
+  // file://、別のポート、github.io のほかのパス、ほかのサイトに置かれた写しで開いたとき
+  if (!PLACE) {
     lockOut('この開き方では使えません(ログインも送信もできません)', [
-      'このPCで start-broadcast.bat を実行し、表示された http://localhost:8765/broadcast.html から開いてください。',
-      'ファイルを直接開いたとき(file://)や、localhost 以外の場所で開いたときは、Firebase に接続せず、ログインも送信もできないようにしています。',
+      HOW_TO_OPEN,
+      'ファイルを直接開いたとき(file://)や、決められた場所以外で開いたときは、Firebase に接続せず、ログインも送信もできないようにしています。',
+    ]);
+    return;
+  }
+  // ほかのページの中に埋め込まれたとき(GitHub Pages ではヘッダーで埋め込みを禁止できないため、ここで止める)
+  if (window.self !== window.top) {
+    lockOut('ほかのページの中では使えません(ログインも送信もできません)', [HOW_TO_OPEN]);
+    return;
+  }
+  // 公開URLでエミュレーター接続を求められたとき(エミュレーター接続は localhost のときだけ)
+  if (PLACE === 'pages' && PARAMS.has('emulator')) {
+    lockOut('公開URLではエミュレーターに接続できません(ログインも送信もできません)', [
+      'エミュレーター(このPC内のテスト環境)への接続は、localhost:8765 で開いたときだけ使えます。',
+      '本番で使うときは、?emulator を付けずに https://hanyama54321-cyber.github.io/matomete-broadcast/ を開いてください。',
     ]);
     return;
   }
