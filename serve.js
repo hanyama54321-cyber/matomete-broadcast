@@ -1,5 +1,6 @@
 // 周知 一括投稿ツールを、このPCの中だけで開くための簡易サーバー(依存パッケージなし)。
-// - broadcast.html だけを返す(README や .git などほかのファイルは返さない)
+// - ツール本体 index.html だけを / で返す(README や .git などほかのファイルは返さない)。
+//   0.1.0 までの /broadcast.html は、? 以降(?emulator=1 など)を保ったまま / へ移す
 // - 127.0.0.1 と ::1 にだけ待ち受けるため、ほかのPCからは接続できない
 // - Host ヘッダーが localhost / 127.0.0.1 / [::1] 以外の要求は断る(DNS リバインディング対策)
 // 使い方: node serve.js [--open]   (--open を付けると既定のブラウザで開く)
@@ -11,8 +12,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const PORT = 8765;
-const FILE = path.join(__dirname, 'broadcast.html');
-const URL_TO_OPEN = `http://localhost:${PORT}/broadcast.html`;
+const FILE = path.join(__dirname, 'index.html');
+const URL_TO_OPEN = `http://localhost:${PORT}/`;
 const ALLOWED_HOSTS = [`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`];
 
 function handler(req, res) {
@@ -27,13 +28,13 @@ function handler(req, res) {
     res.end('Method Not Allowed');
     return;
   }
-  const pathname = new URL(req.url, `http://${host}`).pathname;
-  if (pathname === '/') {
-    res.writeHead(302, { Location: '/broadcast.html' });
+  const url = new URL(req.url, `http://${host}`);
+  if (url.pathname === '/broadcast.html' || url.pathname === '/index.html') {
+    res.writeHead(302, { Location: '/' + url.search });
     res.end();
     return;
   }
-  if (pathname !== '/broadcast.html') {
+  if (url.pathname !== '/') {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not Found');
     return;
@@ -41,7 +42,7 @@ function handler(req, res) {
   fs.readFile(FILE, (err, buf) => {
     if (err) {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('broadcast.html を読めませんでした');
+      res.end('index.html を読めませんでした');
       return;
     }
     res.writeHead(200, {

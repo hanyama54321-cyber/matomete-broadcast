@@ -3,12 +3,1629 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- 公開URLの直下(/matomete-broadcast/)を開いたときに broadcast.html へ移るだけのページ。スクリプトは使わない -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<meta http-equiv="refresh" content="0; url=broadcast.html">
+<!-- 読み込み・通信先の制限。スクリプトは gstatic の Firebase SDK とこのファイル内のものだけ。
+     通信先(connect-src)は SDK 10.14.1 のコードで確かめた次の宛先だけに絞る(ワイルドカードは使わない):
+       identitytoolkit.googleapis.com … ログイン(auth の apiHost)
+       securetoken.googleapis.com     … ログインの更新(auth の tokenApiHost)
+       firestore.googleapis.com       … Firestore の読み書き
+       asia-northeast1-{projectId}.cloudfunctions.net … 3社の Cloud Functions(人数の概算 estimateNotifyAudience)
+       127.0.0.1 / localhost          … 検証用のエミュレーター(このPC内)
+     frame-src は auth が使う場合のある各社の authDomain だけ。
+     各社の projectId・authDomain・Functions のリージョンを変えたら、ここも直すこと -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src data:; connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://asia-northeast1-anzen-matomete-app.cloudfunctions.net https://asia-northeast1-matomete-alogi.cloudfunctions.net https://asia-northeast1-matomete-meiho.cloudfunctions.net http://127.0.0.1:* http://localhost:*; frame-src https://anzen-matomete-app.firebaseapp.com https://matomete-alogi.firebaseapp.com https://matomete-meiho.firebaseapp.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>周知 一括投稿ツール</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313294B'/%3E%3Cpath d='M16 36V28l24-10v28L16 36z' fill='%23fff'/%3E%3Crect x='42' y='26' width='6' height='12' rx='2' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #F6F4EE;
+  --surface: #FFFFFF;
+  --surface2: #EFF4FB;
+  --border: #E1E7F0;
+  --text: #1C2940;
+  --text-sub: #5F6E85;
+  --text-muted: #8A97AB;
+  --navy: #13294B;
+  --primary: #1A56C4;
+  --danger: #D93A3F;
+  --safe: #1F9D55;
+  --warn: #9A5B00;
+  --warn-bg: #FFF6E0;
+  --warn-border: #F2C46B;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.65 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+/* ===== ヘッダー ===== */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--navy); color: #fff;
+}
+.topbar h1 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: .02em; }
+.topbar .ver { font-size: 12px; opacity: .7; }
+.mode-badge {
+  margin-left: auto;
+  font-size: 12px; font-weight: 700;
+  padding: 3px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.55);
+}
+.mode-badge.emu { background: #F59E0B; border-color: #F59E0B; color: #1C2940; }
+.emu-banner {
+  background: #FDE7B0; color: #5A3B00; border-bottom: 1px solid #F2C46B;
+  padding: 8px 20px; font-weight: 700; font-size: 13px;
+}
+
+main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 140px; }
+
+/* ===== 手順ブロック ===== */
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px 20px;
+  margin-bottom: 18px;
+}
+.step > h2 {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 4px; font-size: 16px; color: var(--navy);
+}
+.step > h2 .num {
+  display: inline-grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--navy); color: #fff; font-size: 13px;
+}
+.hint { margin: 0 0 14px; font-size: 12.5px; color: var(--text-sub); }
+.co-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px; }
+
+/* ===== 会社カード(ログイン・プレビュー共通) ===== */
+.co-card {
+  border: 2px solid var(--co);
+  border-radius: var(--radius);
+  background: #fff;
+  overflow: hidden;
+}
+.co-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 14px;
+  background: var(--co); color: #fff;
+}
+.co-name { font-weight: 800; font-size: 15px; }
+.co-pid {
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 12px; opacity: .85;
+}
+.co-body { padding: 12px 14px 14px; }
+
+.co-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+.fld { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-sub); min-width: 0; }
+.fld input { width: 100%; }
+.input, .co-form input, .tag-input-field {
+  border: 1px solid #C9D3E1; border-radius: 8px;
+  padding: 7px 10px; background: #fff;
+}
+.input:focus, .co-form input:focus, .tag-input-wrap:focus-within, textarea.input:focus {
+  outline: 2px solid #9CC0F5; outline-offset: 0; border-color: var(--primary);
+}
+.co-form input[type="text"] { text-transform: uppercase; }
+.co-form input[type="text"]::placeholder { text-transform: none; }
+.co-status { margin-top: 10px; font-size: 13px; }
+.co-status.ok { color: var(--safe); font-weight: 700; }
+.co-status.err { color: var(--danger); font-weight: 700; }
+.co-status.muted { color: var(--text-muted); }
+.co-actions { margin-top: 8px; }
+
+/* ===== ボタン ===== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--primary); background: var(--primary); color: #fff;
+  border-radius: 8px; padding: 7px 14px; font-weight: 700; cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.07); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.ghost { background: #fff; color: var(--primary); }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+.btn.danger { background: var(--danger); border-color: var(--danger); }
+.btn.big { padding: 11px 28px; font-size: 15px; }
+
+/* ===== 入力フォーム ===== */
+.form-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 4px 28px; }
+@media (max-width: 860px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-weight: 700; font-size: 13px; color: var(--navy); margin-bottom: 6px; }
+.form-label .req { color: var(--danger); margin-left: 3px; }
+.form-label .opt { color: var(--text-muted); font-weight: 500; font-size: 11.5px; margin-left: 4px; }
+.input { width: 100%; }
+textarea.input { min-height: 180px; resize: vertical; line-height: 1.7; }
+.sub-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 5px; }
+.inline-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.code-chip {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid #C9D3E1; background: #fff; color: var(--text-sub);
+  border-radius: 999px; padding: 5px 14px; cursor: pointer; font-weight: 600; font-size: 13px;
+}
+.chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+.prio-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.prio-btn {
+  border: 1px solid #C9D3E1; background: #fff; border-radius: 10px; padding: 7px 6px;
+  cursor: pointer; font-weight: 700; font-size: 13px; color: var(--text-sub);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.prio-btn[aria-pressed="true"] { border-color: var(--navy); color: var(--navy); background: var(--surface2); box-shadow: inset 0 0 0 1px var(--navy); }
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+}
+.toggle-row .t-title { font-weight: 700; font-size: 13px; color: var(--navy); }
+.toggle-row .t-sub { font-size: 11.5px; color: var(--text-sub); }
+.switch {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0;
+  width: 44px; height: 24px; border-radius: 999px; background: #C9D3E1; position: relative;
+  cursor: pointer; transition: background .15s; margin: 0;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s;
+}
+.switch:checked { background: var(--safe); }
+.switch:checked::after { left: 23px; }
+.switch:disabled { opacity: .45; cursor: not-allowed; }
+.switch:focus-visible { outline: 2px solid #9CC0F5; outline-offset: 2px; }
+.dl-fields { display: flex; gap: 8px; margin: -2px 0 10px; padding: 0 12px; }
+.dl-fields input { flex: 1; min-width: 0; }
+.tag-input-wrap {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  border: 1px solid #C9D3E1; border-radius: 8px; padding: 6px 8px; background: #fff; cursor: text;
+}
+.tag-input-field { border: none !important; outline: none !important; padding: 2px 4px !important; flex: 1; min-width: 160px; }
+.tag-chip-edit {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--surface2); color: var(--primary); border-radius: 999px; padding: 2px 4px 2px 10px; font-size: 12.5px; font-weight: 600;
+}
+.tag-chip-remove { border: none; background: transparent; color: var(--text-muted); cursor: pointer; padding: 0 4px; font-size: 12px; }
+.field-error { color: var(--danger); font-size: 12px; font-weight: 700; margin-top: 5px; }
+fieldset.lockable { border: none; margin: 0; padding: 0; min-width: 0; }
+
+/* ===== 警告 ===== */
+.warn-box {
+  background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn);
+  border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; margin-bottom: 10px;
+}
+.warn-box::before { content: "⚠ "; }
+
+/* ===== プレビュー ===== */
+.send-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.send-toggle .switch:checked { background: #fff; }
+.send-toggle .switch:checked::after { background: var(--co); }
+.send-toggle .switch { background: rgba(255,255,255,.35); }
+.pv-note { font-size: 12.5px; font-weight: 700; color: var(--danger); margin-bottom: 8px; }
+.pv-note.ok { color: var(--safe); }
+.pv-ann { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.pv-ann.pinned { border-left: 4px solid var(--primary); }
+.pv-meta-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 700;
+  border-radius: 6px; padding: 1px 7px; border: 1px solid; white-space: nowrap;
+}
+.must-badge { background: var(--danger); color: #fff; font-size: 11.5px; font-weight: 800; border-radius: 6px; padding: 1px 7px; }
+.pv-from { font-size: 12px; color: var(--text-muted); }
+.pv-title { font-weight: 700; font-size: 16px; color: var(--navy); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pv-title.empty, .pv-body.empty { color: var(--text-muted); font-weight: 500; font-style: italic; }
+.pv-sub { font-size: 12px; color: var(--text-muted); margin: 2px 0 8px; }
+.pv-deadline { font-size: 12px; color: var(--warn); font-weight: 700; margin-bottom: 6px; }
+.pv-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.tag-pill { font-size: 12px; color: var(--primary); background: var(--surface2); border-radius: 999px; padding: 1px 9px; }
+.pv-divider { border-top: 1px solid var(--border); margin: 8px 0 10px; }
+.pv-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.85; max-height: 420px; overflow: auto; }
+
+/* ===== 送信バー ===== */
+.actionbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 15;
+  background: rgba(255,255,255,.97); border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 16px rgba(19,41,75,.08);
+}
+.actionbar-inner {
+  max-width: 1200px; margin: 0 auto; padding: 12px 16px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.actionbar .summary { flex: 1; min-width: 220px; font-size: 13px; }
+.actionbar .summary b { color: var(--navy); }
+.actionbar .why { color: var(--danger); font-weight: 700; font-size: 12.5px; }
+
+/* ===== 確認画面 ===== */
+dialog.confirm {
+  width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  border: none; border-radius: 16px; padding: 0; color: var(--text);
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+dialog.confirm::backdrop { background: rgba(19,41,75,.55); }
+dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
+.cf-wrap { display: flex; flex-direction: column; max-height: calc(100vh - 32px); }
+.cf-head { padding: 16px 20px 10px; border-bottom: 1px solid var(--border); }
+.cf-head h3 { margin: 0 0 4px; font-size: 17px; color: var(--navy); }
+.cf-meta { font-size: 12.5px; color: var(--text-sub); }
+.cf-body { padding: 14px 20px; overflow: auto; }
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr)); gap: 12px; }
+.cf-co .co-body { padding: 10px 12px 12px; }
+.cf-dl { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 5px 10px; margin: 0; font-size: 13px; }
+.cf-dl dt { color: var(--text-sub); font-weight: 600; }
+.cf-dl dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.lock-preview { background: #1E2A3D; color: #fff; border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.lock-preview .lp-title { font-weight: 800; }
+.count-ok { font-weight: 700; color: var(--navy); }
+.count-ng { font-weight: 700; color: var(--danger); }
+.cf-skip { margin-top: 10px; font-size: 13px; color: var(--text-sub); background: var(--surface2); border-radius: 8px; padding: 7px 10px; }
+.cf-foot { border-top: 1px solid var(--border); padding: 12px 20px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cf-irrev { color: var(--danger); font-weight: 800; flex: 1; min-width: 200px; }
+
+/* ===== 結果 ===== */
+.rs-meta { font-size: 13px; color: var(--text-sub); margin-bottom: 10px; }
+.rs-scroll { overflow-x: auto; }
+.rs-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.rs-table th, .rs-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.rs-table th { font-size: 12px; color: var(--text-sub); font-weight: 700; }
+.rs-co { font-weight: 800; color: var(--co); white-space: nowrap; }
+.rs-co .co-pid { color: var(--text-sub); display: block; font-weight: 500; opacity: 1; }
+.st-success { color: var(--safe); font-weight: 800; }
+.st-failed { color: var(--danger); font-weight: 800; }
+.st-skipped { color: var(--text-muted); font-weight: 700; }
+.st-sending { color: var(--primary); font-weight: 800; }
+.st-detail { display: block; font-size: 12px; font-weight: 500; color: var(--text-sub); overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; overflow-wrap: anywhere; }
+.rs-text { width: 100%; min-height: 150px; margin-top: 12px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+.rs-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
+  background: #1E2A3D; color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 700;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 50;
+}
+.fatal {
+  max-width: 640px; margin: 60px auto; padding: 24px; background: #fff; border: 2px solid var(--danger);
+  border-radius: var(--radius); font-size: 15px;
+}
+.fatal h2 { margin-top: 0; color: var(--danger); font-size: 18px; }
+
+/* 画面が狭いとき(ブラウザの幅を縮めたときなど)も横にはみ出さないようにする */
+@media (max-width: 520px) {
+  .topbar { padding: 10px 12px; }
+  main { padding: 12px 10px 180px; }
+  .step { padding: 14px 12px 16px; }
+  .co-form { grid-template-columns: minmax(0, 1fr); }
+  .cf-head, .cf-body, .cf-foot { padding-left: 12px; padding-right: 12px; }
+  .cf-dl { grid-template-columns: 5.5em minmax(0, 1fr); }
+  .tag-input-field { min-width: 0; }
+}
+</style>
+<!-- Firebase JS SDK(compat 10.14.1。各社アプリと同じ版)。integrity は内容が書き換えられていたら読み込まないための値 -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js" integrity="sha384-hB0JJ4rNFhrwFXdiM7+wikJ3oIxttbx7D6zdYANzqbCt8CL8nLpOgbABsh5Mp3WC" crossorigin="anonymous"></script>
 </head>
-<body style="margin:0;padding:24px;background:#F6F4EE;color:#1C2940;font:15px/1.7 system-ui,-apple-system,'Segoe UI','Hiragino Sans','Yu Gothic UI',Meiryo,sans-serif">
-<p>周知 一括投稿ツールに移動します。自動で移らないときは <a href="broadcast.html">こちら</a> を開いてください。</p>
+<body>
+
+<header class="topbar">
+  <h1>周知 一括投稿ツール</h1>
+  <span class="ver">Ver.0.2.0</span>
+  <span id="mode-badge" class="mode-badge">本番に接続</span>
+</header>
+<div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
+
+<main id="app" hidden>
+  <!-- 1. ログイン -->
+  <section class="step" aria-labelledby="h-login">
+    <h2 id="h-login"><span class="num">1</span>各社にログイン</h2>
+    <p class="hint">メンテ用の管理者コード(BBBBB か CCCCC)でログインします。パスワードは保存しません。タブを閉じると3社ともログアウトします。</p>
+    <div class="co-grid" id="login-grid"></div>
+  </section>
+
+  <!-- 2. 入力(並び・既定値・選択肢は各社アプリの「新しいお知らせ」と同じ) -->
+  <section class="step" aria-labelledby="h-compose">
+    <h2 id="h-compose"><span class="num">2</span>お知らせの内容(1回だけ書く)</h2>
+    <p class="hint">新規・即時公開だけを行います。編集・削除・予約は各社アプリで行ってください。</p>
+    <fieldset class="lockable" id="compose-fields">
+      <div class="form-grid">
+        <div>
+          <div class="form-group">
+            <label class="form-label" for="f-title">タイトル<span class="req">*</span></label>
+            <input type="text" id="f-title" class="input" placeholder="例: 6月シフト確認のお願い" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-body">本文<span class="req">*</span></label>
+            <textarea id="f-body" class="input" placeholder="お知らせの内容を入力..."></textarea>
+            <div class="inline-row">
+              <button type="button" class="btn ghost small" id="btn-insert-placeholder">{会社名} を差し込む</button>
+              <span class="sub-hint" style="margin-top:0">タイトル・本文の <span class="code-chip">{会社名}</span> は、各社の名前(HI-LINE / A-LOGI / 名豊興運)に置き換わります。</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="form-group">
+            <span class="form-label" id="lbl-cat">カテゴリ</span>
+            <div class="chips" id="f-cats" role="group" aria-labelledby="lbl-cat"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-tag-input">タグ<span class="opt">(関連お知らせのスレッド化に利用)</span></label>
+            <div class="tag-input-wrap" id="f-tag-wrap">
+              <span id="f-tag-chips" style="display:contents"></span>
+              <input type="text" id="f-tag-input" class="tag-input-field" placeholder="タグを入力してEnter(例: シフト)" autocomplete="off">
+            </div>
+            <div id="f-tag-error" class="field-error" hidden></div>
+            <div class="sub-hint">20文字以内・最大5個・同じタグは不可。先頭の # は外れます。</div>
+          </div>
+          <div class="form-group">
+            <span class="form-label" id="lbl-prio">優先度</span>
+            <div class="prio-row" id="f-prios" role="group" aria-labelledby="lbl-prio"></div>
+          </div>
+          <div class="form-group">
+            <label class="toggle-row" for="f-mustread">
+              <span>
+                <span class="t-title">✋ 必読として配信</span><br>
+                <span class="t-sub">受信者は「確認しました」ボタンの押下が必要。各社のサーバーからプッシュ通知が送られます</span>
+              </span>
+              <input type="checkbox" class="switch" id="f-mustread" aria-label="必読として配信">
+            </label>
+            <label class="toggle-row" for="f-deadline">
+              <span>
+                <span class="t-title">⏱️ 既読期限を設定</span><br>
+                <span class="t-sub">期限前にリマインダー、超過すると警告表示</span>
+              </span>
+              <input type="checkbox" class="switch" id="f-deadline" aria-label="既読期限を設定">
+            </label>
+            <div class="dl-fields" id="f-dl-fields" hidden>
+              <input type="date" id="f-dl-date" class="input" aria-label="既読期限の日付">
+              <input type="time" id="f-dl-time" class="input" aria-label="既読期限の時刻" value="23:59">
+            </div>
+            <label class="toggle-row" for="f-pinned">
+              <span>
+                <span class="t-title">📌 上部に固定する</span><br>
+                <span class="t-sub">重要なお知らせを一覧の先頭に表示</span>
+              </span>
+              <input type="checkbox" class="switch" id="f-pinned" aria-label="上部に固定する">
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label" for="f-author">投稿者名<span class="opt">(任意)</span></label>
+        <input type="text" id="f-author" class="input" style="max-width:420px" placeholder="空欄なら各社でログインした人の名前" autocomplete="off">
+        <div class="sub-hint">空欄のときは各社の users の名前(アプリと同じ動き)。入力すると3社ともこの名前で投稿します。</div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- 3. プレビューと送信先 -->
+  <section class="step" aria-labelledby="h-preview">
+    <h2 id="h-preview"><span class="num">3</span>プレビューと送信先</h2>
+    <p class="hint">差し込み後の仕上がりです。社ごとに送る・送らないを選べます。</p>
+    <div id="global-warnings"></div>
+    <div class="co-grid" id="preview-grid"></div>
+  </section>
+
+  <!-- 4. 結果 -->
+  <section class="step" id="result-section" aria-labelledby="h-result" hidden>
+    <h2 id="h-result"><span class="num">4</span>結果</h2>
+    <div class="rs-meta" id="rs-meta"></div>
+    <div class="rs-scroll">
+      <table class="rs-table">
+        <thead><tr><th>会社</th><th>結果</th><th>ドキュメント</th><th></th></tr></thead>
+        <tbody id="rs-rows"></tbody>
+      </table>
+    </div>
+    <textarea class="rs-text input" id="rs-text" readonly aria-label="結果(記録用の文字)"></textarea>
+    <div class="rs-actions">
+      <button type="button" class="btn ghost" id="btn-copy">結果をコピー</button>
+      <button type="button" class="btn ghost" id="btn-new">新しいお知らせを作る(入力を消す)</button>
+    </div>
+  </section>
+</main>
+
+<div class="actionbar" id="actionbar" hidden>
+  <div class="actionbar-inner">
+    <div class="summary">
+      <div id="ab-targets"></div>
+      <div class="why" id="ab-why"></div>
+    </div>
+    <button type="button" class="btn big" id="btn-confirm" disabled>確認へ</button>
+  </div>
+</div>
+
+<dialog class="confirm" id="confirm-dialog" aria-labelledby="cf-title">
+  <div class="cf-wrap">
+    <div class="cf-head">
+      <h3 id="cf-title">送信内容の確認</h3>
+      <div class="cf-meta" id="cf-meta"></div>
+    </div>
+    <div class="cf-body">
+      <div class="cf-grid" id="cf-grid"></div>
+      <div id="cf-skips"></div>
+    </div>
+    <div class="cf-foot">
+      <div class="cf-irrev">送信後は取り消せません。</div>
+      <button type="button" class="btn ghost" id="cf-cancel">キャンセル</button>
+      <button type="button" class="btn danger" id="cf-send" disabled>送信する</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="confirm small" id="reset-dialog" aria-labelledby="rd-title">
+  <div class="cf-wrap">
+    <div class="cf-head"><h3 id="rd-title">新しいお知らせを作りますか？</h3></div>
+    <div class="cf-body">入力した内容と、いま表示している結果を消します。結果を記録に残す場合は、先に「結果をコピー」を押してください。</div>
+    <div class="cf-foot">
+      <span style="flex:1"></span>
+      <button type="button" class="btn ghost" id="rd-cancel">やめる</button>
+      <button type="button" class="btn" id="rd-ok">消して新しく作る</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<div id="fatal" class="fatal" hidden></div>
+<noscript><div class="fatal"><h2>JavaScript が無効です</h2><p>このツールは JavaScript を有効にしたブラウザで開いてください(マイPCでは start-broadcast.bat から、ほかのPCからは公開URLから)。</p></div></noscript>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ===== 基本設定 ===== */
+  const TOOL_VERSION = '0.2.0';
+  // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
+  const AUTH_EMAIL_DOMAIN = '@matomete.local';
+  const AUTH_PW_SUFFIX    = '_mtm';
+  const FUNCTIONS_REGION  = 'asia-northeast1';
+  // 外部に開示済みのメンテ用コード。このツールではログインさせない
+  const FORBIDDEN_CODES   = ['AAAAA'];
+  const PLACEHOLDER       = '{会社名}';
+  const STORAGE_PREFIX    = 'matomete-broadcast:';
+  const WRITE_TIMEOUT_MS  = 30000;
+
+  // 3社の接続先。config は各社 index.html 冒頭の firebaseConfig をそのまま写したもの。
+  // projectId・authDomain を変えたら、<head> の Content-Security-Policy(connect-src・frame-src)も直すこと。
+  // emulatorPorts は検証用(?emulator=1 のときだけ使う)。emulator/ の設定と一致させること
+  const COMPANIES = [
+    {
+      key: 'hiline', label: 'HI-LINE', color: '#1A56C4',
+      // rendersHtml: お知らせのタイトル・本文を HTML のまま画面に埋め込む社は true にして、< > & を含む投稿を送らない。
+      // HI-LINE は 0.4.8 まで HTML のまま表示していたが、0.4.9(main 7342e93)で文字として表示するよう直ったため false
+      rendersHtml: false,
+      config: {
+        apiKey: 'AIzaSyBDEk7luVCDDJooPwG6BU0r1qX8GROc6rY',
+        authDomain: 'anzen-matomete-app.firebaseapp.com',
+        projectId: 'anzen-matomete-app',
+        storageBucket: 'anzen-matomete-app.firebasestorage.app',
+        messagingSenderId: '163103621501',
+        appId: '1:163103621501:web:53410bbe65778f5d154c14',
+        measurementId: 'G-FQKRCR30BY',
+      },
+      emulatorPorts: { auth: 9101, firestore: 8101, functions: 5101 },
+    },
+    {
+      key: 'alogi', label: 'A-LOGI', color: '#D93A3F',
+      rendersHtml: false,
+      config: {
+        apiKey: 'AIzaSyBnsA1HjJaqIxTqZVoJf6PYSxI8kiLs__c',
+        authDomain: 'matomete-alogi.firebaseapp.com',
+        projectId: 'matomete-alogi',
+        storageBucket: 'matomete-alogi.firebasestorage.app',
+        messagingSenderId: '252853368767',
+        appId: '1:252853368767:web:435764e7010e643dfed30a',
+      },
+      emulatorPorts: { auth: 9102, firestore: 8102, functions: 5102 },
+    },
+    {
+      key: 'meiho', label: '名豊興運', color: '#13294B',
+      rendersHtml: false,
+      config: {
+        apiKey: 'AIzaSyBrZn3f7q7q2ESD19WHceNypmVaDyJCNsc',
+        authDomain: 'matomete-meiho.firebaseapp.com',
+        projectId: 'matomete-meiho',
+        storageBucket: 'matomete-meiho.firebasestorage.app',
+        messagingSenderId: '1085038876307',
+        appId: '1:1085038876307:web:47acae409d801c44935f66',
+      },
+      emulatorPorts: { auth: 9103, firestore: 8103, functions: 5103 },
+    },
+  ];
+
+  // 各社アプリの annCategories と同じ id・表示名・並び(既定は work)
+  const CATEGORIES = [
+    { id: 'safety', label: '安全',   color: '#D93A3F' },
+    { id: 'work',   label: '業務',   color: '#1A56C4' },
+    { id: 'hr',     label: '人事',   color: '#1F9D55' },
+    { id: 'system', label: '設備',   color: '#7C3AED' },
+    { id: 'other',  label: 'その他', color: '#5F6E85' },
+  ];
+  // 各社アプリのエディタの優先度ボタンと同じ並び(既定は normal)
+  const PRIORITIES = [
+    { id: 'high',   label: '重要', icon: '🔴' },
+    { id: 'normal', label: '通常', icon: '🔵' },
+    { id: 'low',    label: '低',   icon: '🟢' },
+  ];
+  // 書き込む項目。各社アプリ submitAnnPayload() の「新規・即時公開」と同じ16項目で、増やさない
+  // (announcements のルールは項目の形を検査しないため、形を守るのはこのツールだけ)
+  const PAYLOAD_KEYS = [
+    'title', 'body', 'category', 'priority', 'target', 'pinned', 'mustRead', 'readDeadline',
+    'tags', 'status', 'scheduledAt', 'updatedAt', 'authorUid', 'authorName', 'createdAt', 'publishedAt',
+  ];
+
+  /* ===== 開き方の確認(動いてよい場所は次の2つだけ) =====
+     local: このPCの簡易サーバー serve.js(http://localhost:8765/。127.0.0.1・[::1] も同じサーバー)
+     pages: GitHub Pages の公開URL(https://hanyama54321-cyber.github.io/matomete-broadcast/ の下)
+     それ以外(file://、別のポート、github.io のほかのパス、ほかのサイト)では何もできない状態にする */
+  const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+  const LOCAL_PORT  = '8765';
+  const PAGES_HOST  = 'hanyama54321-cyber.github.io';
+  const PAGES_PATH  = '/matomete-broadcast/';
+  function judgePlace(loc) {
+    if (loc.protocol === 'http:' && LOCAL_HOSTS.includes(loc.hostname) && loc.port === LOCAL_PORT) return 'local';
+    if (loc.protocol === 'https:' && loc.hostname === PAGES_HOST && loc.port === '' && loc.pathname.startsWith(PAGES_PATH)) return 'pages';
+    return null;
+  }
+  const PLACE = judgePlace(location);
+  const PARAMS = new URLSearchParams(location.search);
+  // エミュレーター接続は、このPCの簡易サーバーで開いたときだけ(公開URLで emulator が付いていたら下で締め出す)
+  const EMULATOR = PLACE === 'local' && PARAMS.get('emulator') === '1';
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+
+  function showFatal(title, lines) {
+    const box = $('#fatal');
+    box.textContent = '';
+    box.append(el('h2', { text: title }), ...lines.map(t => el('p', { text: t })));
+    box.hidden = false;
+  }
+
+  // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
+  // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
+  function lockOut(title, lines) {
+    ['#app', '#actionbar', '#confirm-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+      const node = $(sel);
+      if (node) node.remove();
+    });
+    $('#mode-badge').textContent = '使えません';
+    showFatal(title, lines);
+  }
+
+  const HOW_TO_OPEN = 'マイPCでは start-broadcast.bat から(http://localhost:8765/)、ほかのPCからは公開URL(https://hanyama54321-cyber.github.io/matomete-broadcast/)から開いてください。';
+
+  // file://、別のポート、github.io のほかのパス、ほかのサイトに置かれた写しで開いたとき
+  if (!PLACE) {
+    lockOut('この開き方では使えません(ログインも送信もできません)', [
+      HOW_TO_OPEN,
+      'ファイルを直接開いたとき(file://)や、決められた場所以外で開いたときは、Firebase に接続せず、ログインも送信もできないようにしています。',
+    ]);
+    return;
+  }
+  // ほかのページの中に埋め込まれたとき(GitHub Pages ではヘッダーで埋め込みを禁止できないため、ここで止める)
+  if (window.self !== window.top) {
+    lockOut('ほかのページの中では使えません(ログインも送信もできません)', [HOW_TO_OPEN]);
+    return;
+  }
+  // 公開URLでエミュレーター接続を求められたとき(エミュレーター接続は localhost のときだけ)
+  if (PLACE === 'pages' && PARAMS.has('emulator')) {
+    lockOut('公開URLではエミュレーターに接続できません(ログインも送信もできません)', [
+      'エミュレーター(このPC内のテスト環境)への接続は、localhost:8765 で開いたときだけ使えます。',
+      '本番で使うときは、?emulator を付けずに https://hanyama54321-cyber.github.io/matomete-broadcast/ を開いてください。',
+    ]);
+    return;
+  }
+  if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore || !firebase.functions) {
+    lockOut('Firebase SDK を読み込めませんでした(ログインも送信もできません)', [
+      'インターネットにつながっているか確かめてから、ページを再読み込みしてください。',
+      '直らない場合は、読み込んだファイルの内容が想定と違う(integrity の不一致)可能性があります。',
+    ]);
+    return;
+  }
+
+  /* ===== DOM の組み立て(利用者の入力は必ず textContent で文字として入れる) ===== */
+  function el(tag, props = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'style') node.style.cssText = v;
+      else if (k === 'dataset') Object.assign(node.dataset, v);
+      else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+      else if (v === true) node.setAttribute(k, '');
+      else node.setAttribute(k, String(v));
+    }
+    for (const c of children.flat()) {
+      if (c == null || c === false) continue;
+      node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+    return node;
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+
+  // エミュレーター接続のときは記憶先を分ける(検証用のコードが本番の入力欄に出ないように)
+  const storagePrefix = STORAGE_PREFIX + (EMULATOR ? 'emulator:' : '');
+  function storageGet(key) {
+    try { return localStorage.getItem(storagePrefix + key); } catch (e) { return null; }
+  }
+  function storageSet(key, value) {
+    try { localStorage.setItem(storagePrefix + key, value); } catch (e) { /* 記憶できなくても動作には影響しない */ }
+  }
+
+  // エラーを1行の文字にする(記録用の文字が崩れないよう改行・連続した空白は詰め、長すぎるものは切る)
+  const ERR_HINTS = {
+    'permission-denied': '書き込み・呼び出しを拒否されました。管理者権限とログイン状態を確認してください',
+    'unauthenticated': 'ログインが切れています。ログインし直してください',
+    'unavailable': 'サーバーに接続できませんでした。ネットワークを確認してください',
+    'deadline-exceeded': '時間内に応答がありませんでした',
+  };
+  function errText(e) {
+    if (!e) return '不明なエラー';
+    const code = e.code ? String(e.code) : '';
+    const shortCode = code.replace(/^(functions|firestore|auth)\//, '');
+    let msg = (e.message ? String(e.message) : String(e)).replace(/\s+/g, ' ').trim();
+    if (msg.length > 160) msg = msg.slice(0, 160) + '…';
+    const raw = code && !msg.includes(code) ? `${code}: ${msg}` : msg;
+    return ERR_HINTS[shortCode] ? `${ERR_HINTS[shortCode]}(${raw})` : raw;
+  }
+
+  function fmtNow(d = new Date()) {
+    return d.toLocaleString('ja-JP', { hour12: false });
+  }
+
+  /* ===== 状態 ===== */
+  const form = {
+    category: 'work',
+    priority: 'normal',
+    tags: [],
+    lastFocus: 'body',   // {会社名} の差し込み先
+  };
+  let broadcast = null;      // 直近の一括送信 { id, content, sentAt, rows: {key: {status, detail}} }
+  let confirmSession = null; // 確認画面を開いている間の情報
+  let writing = false;       // 書き込み中(ページを閉じる前に警告する)
+
+  /* ===== 会社ごとの Firebase(名前付きアプリを3つ) ===== */
+  const cos = COMPANIES.map(def => {
+    // エミュレーター接続のときはアプリ名を変える。ログイン情報(sessionStorage)はアプリ名ごとに保存されるため、
+    // 同じタブで本番に切り替えたときに、エミュレーターのログインが本番側で復元されないようにする
+    const app = firebase.initializeApp(def.config, EMULATOR ? `${def.key}-emulator` : def.key);
+    const auth = app.auth();
+    const db = app.firestore();
+    const fns = app.functions(FUNCTIONS_REGION);
+    if (EMULATOR) {
+      const p = def.emulatorPorts;
+      auth.useEmulator(`http://127.0.0.1:${p.auth}`, { disableWarnings: true });
+      db.useEmulator('127.0.0.1', p.firestore);
+      fns.useEmulator('127.0.0.1', p.functions);
+    }
+    const co = {
+      def, auth, db, fns,
+      phase: 'init',       // init / out / busy / ready
+      busyText: '',
+      msg: '', msgKind: '', // msgKind: '' / 'error' / 'blocked'(投稿できない理由)
+      login: null,          // { code, name }
+      wantSend: true,       // 送信ON/OFF(使える状態のときだけ効く)
+      ui: {},
+    };
+    // 認証の保持はタブ単位(タブを閉じたらログアウト)。ログインより前に切り替えておく。
+    // 切り替えられなかったときは、ログインが残り続けないよう、その社にはログインさせない
+    co.persistenceReady = auth.setPersistence(firebase.auth.Auth.Persistence.SESSION)
+      .then(() => true, e => { console.error(`[${def.label}] setPersistence に失敗:`, e); return false; });
+    auth.onAuthStateChanged(user => { onAuthChanged(co, user); });
+    return co;
+  });
+  const coByKey = key => cos.find(c => c.def.key === key);
+
+  /* ===== ログイン ===== */
+  function codeFromEmail(email) {
+    // Firebase Auth はメールを小文字で保存するため、正準形(大文字)に揃える(各社アプリ・ルールと同じ)
+    return String(email || '').split('@')[0].toUpperCase();
+  }
+
+  function setPhase(co, phase, busyText = '') {
+    co.phase = phase;
+    co.busyText = busyText;
+    renderAll();
+  }
+
+  function setMessage(co, kind, msg) {
+    co.msgKind = kind;
+    co.msg = msg;
+  }
+
+  async function safeSignOut(co) {
+    try { await co.auth.signOut(); } catch (e) { console.error(e); }
+  }
+
+  async function onLoginClick(co) {
+    const code = co.ui.code.value.trim().toUpperCase();
+    const pw = co.ui.pw.value;
+    co.ui.pw.value = ''; // パスワードは画面にも残さない
+    setMessage(co, '', '');
+    if (!code || !pw) {
+      setMessage(co, 'error', 'コードとパスワードを入力してください');
+      renderAll();
+      return;
+    }
+    if (FORBIDDEN_CODES.includes(code)) {
+      setMessage(co, 'blocked', `${code} は外部に開示済みのため、このツールでは使えません。BBBBB か CCCCC でログインしてください`);
+      renderAll();
+      return;
+    }
+    // 初期パスワード(=コード)のままのアカウントでは投稿させない。大文字・小文字の違いだけのものも止める
+    if (pw.trim().toUpperCase() === code) {
+      setMessage(co, 'blocked', 'パスワードが初期値(コードと同じ)のままです。各社アプリのプロフィールでパスワードを変えてから使ってください');
+      renderAll();
+      return;
+    }
+    setPhase(co, 'busy', 'ログイン中…');
+    if (!(await co.persistenceReady)) {
+      setMessage(co, 'blocked', 'ログインをタブ単位で保持する設定にできませんでした(ブラウザの設定を確認してください)。この社にはログインできません');
+      setPhase(co, 'out');
+      return;
+    }
+    try {
+      await co.auth.signInWithEmailAndPassword(code + AUTH_EMAIL_DOMAIN, pw + AUTH_PW_SUFFIX);
+      // 成功 → onAuthChanged が users を確かめて「ログイン中」にする
+    } catch (e) {
+      const c = e && e.code;
+      let msg;
+      if (['auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found',
+           'auth/wrong-password', 'auth/invalid-email'].includes(c)) {
+        msg = 'コードまたはパスワードが違います';
+      } else if (c === 'auth/too-many-requests') {
+        msg = '試行回数が多すぎます。しばらく待ってから再度お試しください';
+      } else if (c === 'auth/network-request-failed') {
+        msg = '通信エラーです。ネットワークを確認してください';
+      } else if (c === 'auth/user-disabled') {
+        msg = 'このアカウントは無効になっています';
+      } else {
+        msg = 'ログインに失敗しました(' + (c || errText(e)) + ')';
+      }
+      setMessage(co, 'error', msg);
+      setPhase(co, 'out');
+    }
+  }
+
+  async function onAuthChanged(co, user) {
+    if (!user) {
+      co.login = null;
+      setPhase(co, 'out');
+      return;
+    }
+    const code = codeFromEmail(user.email);
+    if (FORBIDDEN_CODES.includes(code)) {
+      await safeSignOut(co);
+      setMessage(co, 'blocked', `${code} は外部に開示済みのため、このツールでは使えません。BBBBB か CCCCC でログインしてください`);
+      setPhase(co, 'out');
+      return;
+    }
+    setPhase(co, 'busy', '管理者かどうかを確認中…');
+    let snap;
+    try {
+      snap = await co.db.collection('users').doc(code).get();
+    } catch (e) {
+      await safeSignOut(co);
+      setMessage(co, 'blocked', `ユーザー情報(users/${code})を読めませんでした(${errText(e)})`);
+      setPhase(co, 'out');
+      return;
+    }
+    if (co.auth.currentUser !== user) return; // 確認中にログアウトされた
+    if (!snap.exists) {
+      await safeSignOut(co);
+      setMessage(co, 'blocked', `users/${code} がありません。この社では投稿できません`);
+      setPhase(co, 'out');
+      return;
+    }
+    const u = snap.data() || {};
+    if (u.role !== 'admin') {
+      await safeSignOut(co);
+      setMessage(co, 'blocked', `${code} は管理者ではありません(role: ${u.role == null ? 'なし' : String(u.role)})。この社では投稿できません`);
+      setPhase(co, 'out');
+      return;
+    }
+    co.login = { code, name: typeof u.name === 'string' ? u.name : '' };
+    setMessage(co, '', '');
+    storageSet('code:' + co.def.key, code); // コードだけは記憶してよい(パスワードは保存しない)
+    setPhase(co, 'ready');
+  }
+
+  function buildLoginCard(co) {
+    const d = co.def;
+    const ui = co.ui;
+    ui.code = el('input', { type: 'text', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'characters', placeholder: 'BBBBB', 'aria-label': `${d.label} のコード` });
+    ui.pw = el('input', { type: 'password', autocomplete: 'off', 'aria-label': `${d.label} のパスワード` });
+    ui.loginBtn = el('button', { type: 'button', class: 'btn', text: 'ログイン', onclick: () => onLoginClick(co) });
+    ui.status = el('div', { class: 'co-status' });
+    ui.logoutBtn = el('button', { type: 'button', class: 'btn ghost small', text: 'ログアウト', onclick: () => { setMessage(co, '', ''); safeSignOut(co); } });
+    ui.loginForm = el('div', { class: 'co-form' },
+      el('label', { class: 'fld' }, el('span', { text: 'コード' }), ui.code),
+      el('label', { class: 'fld' }, el('span', { text: 'パスワード' }), ui.pw),
+      ui.loginBtn);
+    const onEnter = e => { if (e.key === 'Enter' && !e.isComposing) onLoginClick(co); };
+    ui.code.addEventListener('keydown', onEnter);
+    ui.pw.addEventListener('keydown', onEnter);
+    ui.code.value = storageGet('code:' + d.key) || '';
+    return el('div', { class: 'co-card', style: `--co:${d.color}`, dataset: { co: d.key } },
+      el('div', { class: 'co-head' },
+        el('span', { class: 'co-name', text: d.label }),
+        el('span', { class: 'co-pid', text: d.config.projectId })),
+      el('div', { class: 'co-body' },
+        ui.loginForm,
+        ui.status,
+        el('div', { class: 'co-actions' }, ui.logoutBtn)));
+  }
+
+  function renderLoginCard(co) {
+    const ui = co.ui;
+    const busy = co.phase === 'init' || co.phase === 'busy';
+    ui.loginForm.hidden = co.phase === 'ready';
+    ui.logoutBtn.hidden = co.phase !== 'ready';
+    [ui.code, ui.pw, ui.loginBtn].forEach(x => { x.disabled = busy; });
+    if (co.phase === 'ready') {
+      const name = co.login.name && co.login.name.trim() ? co.login.name : '(名前なし)';
+      ui.status.className = 'co-status ok';
+      ui.status.textContent = `ログイン中: ${name}(${co.login.code})`;
+    } else if (busy) {
+      ui.status.className = 'co-status muted';
+      ui.status.textContent = co.phase === 'init' ? '接続を確認中…' : co.busyText;
+    } else if (co.msg) {
+      ui.status.className = 'co-status err';
+      ui.status.textContent = (co.msgKind === 'blocked' ? '投稿できません: ' : '') + co.msg;
+    } else {
+      ui.status.className = 'co-status muted';
+      ui.status.textContent = '未ログイン';
+    }
+  }
+
+  /* ===== 入力の読み取り ===== */
+  function computeDeadline() {
+    // 各社アプリ saveAnn() と同じ: 期限ONで日付があるときだけ 'YYYY-MM-DD HH:MM'(時刻の既定 23:59)
+    if (!$('#f-deadline').checked) return null;
+    const date = $('#f-dl-date').value;
+    const time = $('#f-dl-time').value || '23:59';
+    return date ? `${date} ${time}` : null;
+  }
+
+  function readContent() {
+    return {
+      title: $('#f-title').value.trim(),
+      body: $('#f-body').value.trim(),
+      category: form.category,
+      priority: form.priority,
+      pinned: $('#f-pinned').checked,
+      mustRead: $('#f-mustread').checked,
+      readDeadline: computeDeadline(),
+      tags: form.tags.slice(),
+      authorOverride: $('#f-author').value.trim(),
+    };
+  }
+
+  function forCompany(text, co) {
+    return text.split(PLACEHOLDER).join(co.def.label);
+  }
+
+  function htmlCharFields(content, co) {
+    const hit = [];
+    const re = /[<>&]/;
+    if (re.test(forCompany(content.title, co))) hit.push('タイトル');
+    if (re.test(forCompany(content.body, co))) hit.push('本文');
+    if (content.tags.some(t => re.test(t))) hit.push('タグ');
+    return hit;
+  }
+
+  function resolveAuthorName(co, content) {
+    if (content.authorOverride) return content.authorOverride;
+    const n = co.login && co.login.name;
+    return typeof n === 'string' && n.trim() ? n : '';
+  }
+
+  // その社に送れるかどうか(ログイン状態・HTML のまま表示する社の除外(rendersHtml)・投稿者名)
+  function eligibility(co, content) {
+    if (co.phase === 'init' || co.phase === 'busy') return { ok: false, reason: '確認中です' };
+    if (co.phase !== 'ready') {
+      return { ok: false, reason: co.msgKind === 'blocked' ? '投稿できないコードです(ログイン欄を参照)' : '未ログイン' };
+    }
+    if (co.def.rendersHtml && htmlCharFields(content, co).length) {
+      return { ok: false, reason: `< > & を含むため送れません(${co.def.label} はお知らせを HTML のまま表示するため、表示が崩れます)` };
+    }
+    if (!resolveAuthorName(co, content)) {
+      return { ok: false, reason: 'ログインした人の名前(users.name)が空です。投稿者名を入力してください' };
+    }
+    return { ok: true, reason: '' };
+  }
+
+  /* ===== タグ(各社アプリ addEdTagFromInput() と同じ正規化) ===== */
+  function addTagFromInput() {
+    const inp = $('#f-tag-input');
+    const val = inp.value.trim().replace(/^#+/, '');
+    if (!val) return { error: inp.value.trim() ? 'タグが空です(# だけでは追加できません)' : '', kind: 'empty' };
+    if (val.length > 20) return { error: 'タグは20文字以内です', kind: 'long' };
+    if (form.tags.includes(val)) {
+      inp.value = '';
+      return { error: '同じタグは追加できません', kind: 'dup' };
+    }
+    if (form.tags.length >= 5) return { error: 'タグは最大5個までです', kind: 'max' };
+    form.tags.push(val);
+    inp.value = '';
+    return { error: '', kind: 'added' };
+  }
+
+  function showTagError(msg) {
+    const box = $('#f-tag-error');
+    box.textContent = msg;
+    box.hidden = !msg;
+  }
+
+  function renderTags() {
+    const wrap = $('#f-tag-chips');
+    wrap.textContent = '';
+    form.tags.forEach((t, i) => {
+      wrap.append(el('span', { class: 'tag-chip-edit' },
+        t,
+        el('button', { type: 'button', class: 'tag-chip-remove', 'aria-label': `タグ「${t}」を外す`, dataset: { tagIndex: String(i) }, text: '✕' })));
+    });
+  }
+
+  /* ===== プレビュー ===== */
+  function mkTag(label, color) {
+    return el('span', { class: 'tag', style: `background:${color}14;color:${color};border-color:${color}55`, text: label });
+  }
+
+  function fmtDeadline(dl) {
+    // 'YYYY-MM-DD HH:MM' → 'M/D HH:MM'
+    const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/.exec(dl || '');
+    return m ? `${Number(m[2])}/${Number(m[3])} ${m[4]}` : String(dl);
+  }
+
+  function buildPreviewCard(co) {
+    const ui = co.ui;
+    ui.sendSwitch = el('input', { type: 'checkbox', class: 'switch', 'aria-label': `${co.def.label} に送る` });
+    ui.sendSwitch.addEventListener('change', () => { co.wantSend = ui.sendSwitch.checked; renderAll(); });
+    ui.pvNote = el('div', { class: 'pv-note' });
+    ui.pvAnn = el('div', { class: 'pv-ann' });
+    return el('div', { class: 'co-card', style: `--co:${co.def.color}`, dataset: { co: co.def.key } },
+      el('div', { class: 'co-head' },
+        el('span', { class: 'co-name', text: co.def.label }),
+        el('span', { class: 'co-pid', text: co.def.config.projectId }),
+        el('label', { class: 'send-toggle' }, ui.sendSwitch, el('span', { text: '送る' }))),
+      el('div', { class: 'co-body' }, ui.pvNote, ui.pvAnn));
+  }
+
+  function renderPreviewCard(co, content) {
+    const ui = co.ui;
+    const elig = eligibility(co, content);
+    const locked = !!broadcast;
+    ui.sendSwitch.disabled = !elig.ok || locked;
+    ui.sendSwitch.checked = elig.ok && co.wantSend;
+    if (!elig.ok) {
+      ui.pvNote.className = 'pv-note';
+      ui.pvNote.textContent = '送れません: ' + elig.reason;
+    } else if (!co.wantSend) {
+      ui.pvNote.className = 'pv-note';
+      ui.pvNote.textContent = '送信OFF(この社には送りません)';
+    } else {
+      ui.pvNote.className = 'pv-note ok';
+      ui.pvNote.textContent = '送信先に入っています';
+    }
+
+    const title = forCompany(content.title, co);
+    const body = forCompany(content.body, co);
+    const cat = CATEGORIES.find(c => c.id === content.category) || CATEGORIES[4];
+    const author = resolveAuthorName(co, content) || (co.phase === 'ready' ? '管理者' : '(投稿者はログイン後に決まります)');
+    ui.pvAnn.className = 'pv-ann' + (content.pinned ? ' pinned' : '');
+    ui.pvAnn.textContent = '';
+    ui.pvAnn.append(...[
+      el('div', { class: 'pv-meta-row' },
+        content.pinned ? mkTag('📌', '#1A56C4') : null,
+        content.mustRead ? el('span', { class: 'must-badge', text: '✋ 必読' }) : null,
+        mkTag(cat.label, cat.color),
+        content.priority === 'high' ? mkTag('🔴 重要', '#D93A3F') : null,
+        content.priority === 'low' ? mkTag('🟢 低', '#1F9D55') : null,
+        el('span', { class: 'pv-from', text: author })),
+      el('div', { class: 'pv-title' + (title ? '' : ' empty'), text: title || '(タイトル未入力)' }),
+      el('div', { class: 'pv-sub', text: `${author} · たった今` }),
+      content.readDeadline ? el('div', { class: 'pv-deadline', text: `⏱️ 既読期限 ${fmtDeadline(content.readDeadline)}` }) : null,
+      content.tags.length ? el('div', { class: 'pv-tags' }, content.tags.map(t => el('span', { class: 'tag-pill', text: '#' + t }))) : null,
+      el('div', { class: 'pv-divider' }),
+      el('div', { class: 'pv-body' + (body ? '' : ' empty'), text: body || '(本文未入力)' }),
+    ].filter(Boolean));
+  }
+
+  function renderWarnings(content) {
+    const box = $('#global-warnings');
+    box.textContent = '';
+    for (const co of cos.filter(c => c.def.rendersHtml)) {
+      const hit = htmlCharFields(content, co);
+      if (hit.length) {
+        box.append(el('div', { class: 'warn-box', text: `${hit.join('・')}に < > & が含まれています。${co.def.label} はお知らせを HTML のまま表示するため表示が崩れるので、${co.def.label} には送れません。` }));
+      }
+    }
+    const leftover = /[{}｛｝]/;
+    if (leftover.test(content.title.split(PLACEHOLDER).join('')) || leftover.test(content.body.split(PLACEHOLDER).join(''))) {
+      box.append(el('div', { class: 'warn-box', text: `差し込みに使えるのは ${PLACEHOLDER} だけです。それ以外の { } はそのまま表示されます。` }));
+    }
+    if ($('#f-deadline').checked) {
+      if (!$('#f-dl-date').value) {
+        box.append(el('div', { class: 'warn-box', text: '既読期限の日付が空のため、期限なしで送ります(アプリと同じ動き)。' }));
+      } else if (content.readDeadline && new Date(content.readDeadline.replace(' ', 'T')) < new Date()) {
+        box.append(el('div', { class: 'warn-box', text: '既読期限が過去の日時になっています。' }));
+      }
+    }
+  }
+
+  /* ===== 送信バー ===== */
+  function currentTargets(content) {
+    return cos.filter(co => co.wantSend && eligibility(co, content).ok);
+  }
+
+  function renderActionBar(content) {
+    const targets = currentTargets(content);
+    const btn = $('#btn-confirm');
+    const why = [];
+    if (broadcast) why.push('送信済みです。新しく送るときは「新しいお知らせを作る」を押してください');
+    else {
+      if (!content.title || !content.body) why.push('タイトルと本文を入力してください');
+      if (!targets.length) why.push('送信先がありません(ログインと「送る」を確認してください)');
+    }
+    $('#ab-targets').textContent = '';
+    $('#ab-targets').append('送信先: ', el('b', { text: targets.length ? targets.map(c => c.def.label).join('・') + `(${targets.length}社)` : 'なし' }));
+    $('#ab-why').textContent = why.join(' / ');
+    btn.disabled = why.length > 0 || writing;
+  }
+
+  let booted = false;
+  function renderAll() {
+    if (!booted) return;
+    // 送信後は入力欄を固定する(同じ内容の二重投稿を防ぐ)。新しく送るときは「新しいお知らせを作る」で戻す
+    setComposeLocked(!!broadcast);
+    const content = readContent();
+    cos.forEach(renderLoginCard);
+    cos.forEach(co => renderPreviewCard(co, content));
+    renderWarnings(content);
+    renderActionBar(content);
+    renderResults();
+  }
+
+  /* ===== 確認画面 ===== */
+  function makeBroadcastId(now = new Date()) {
+    const p = n => String(n).padStart(2, '0');
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const rnd = Array.from(crypto.getRandomValues(new Uint8Array(4)), b => chars[b % chars.length]).join('');
+    return `bc-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}-${rnd}`;
+  }
+
+  function flushPendingTag() {
+    // 各社アプリ saveAnn() と同じく、入力途中のタグも保存する。ただし追加できないものは黙って捨てずに止める
+    const inp = $('#f-tag-input');
+    if (!inp.value.trim()) return '';
+    const r = addTagFromInput();
+    renderTags();
+    if (r.kind === 'added' || r.kind === 'dup') return '';
+    return r.error || 'タグを追加できません';
+  }
+
+  function openConfirm() {
+    if (broadcast || writing) return;
+    const tagErr = flushPendingTag();
+    showTagError(tagErr);
+    if (tagErr) { renderAll(); $('#f-tag-input').focus(); return; }
+    const content = readContent();
+    if (!content.title || !content.body) { renderAll(); return; }
+    const targets = [];
+    const skipped = [];
+    for (const co of cos) {
+      const elig = eligibility(co, content);
+      if (elig.ok && co.wantSend) targets.push(co);
+      else skipped.push({ co, reason: elig.ok ? '送信OFF' : elig.reason });
+    }
+    if (!targets.length) { renderAll(); return; }
+    showConfirm({ mode: 'initial', id: makeBroadcastId(), content: freeze(content), targets, skipped });
+  }
+
+  function openRetryConfirm(key) {
+    if (!broadcast || writing) return;
+    const co = coByKey(key);
+    const row = broadcast.rows[key];
+    if (!row || row.status !== 'failed') return;
+    const elig = eligibility(co, broadcast.content);
+    if (!elig.ok) { toast(`${co.def.label}: ${elig.reason}`); return; }
+    showConfirm({ mode: 'retry', id: broadcast.id, content: broadcast.content, targets: [co], skipped: [] });
+  }
+
+  function freeze(content) {
+    return Object.freeze({ ...content, tags: Object.freeze(content.tags.slice()) });
+  }
+
+  function showConfirm(session) {
+    session.countCells = {};
+    confirmSession = session;
+    const { content } = session;
+    $('#cf-title').textContent = session.mode === 'retry' ? '再送の確認(同じIDでもう一度書き込みます)' : '送信内容の確認';
+    $('#cf-meta').textContent = `一括送信ID: ${session.id} ・ 現在時刻: ${fmtNow()} ・ 送信先: ${session.targets.map(c => c.def.label).join('・')}(${session.targets.length}社)`;
+    const grid = $('#cf-grid');
+    grid.textContent = '';
+    for (const co of session.targets) {
+      const title = forCompany(content.title, co);
+      const cat = CATEGORIES.find(c => c.id === content.category) || CATEGORIES[4];
+      const prio = PRIORITIES.find(x => x.id === content.priority);
+      const others = [
+        `優先度 ${prio ? prio.label : content.priority}`,
+        `上部に固定 ${content.pinned ? 'あり' : 'なし'}`,
+        `既読期限 ${content.readDeadline ? content.readDeadline : 'なし'}`,
+        `タグ ${content.tags.length ? content.tags.map(t => '#' + t).join(' ') : 'なし'}`,
+      ].join(' / ');
+      const dl = el('dl', { class: 'cf-dl' },
+        el('dt', { text: 'タイトル' }), el('dd', { text: title }),
+        el('dt', { text: '投稿者名' }), el('dd', { text: resolveAuthorName(co, content) }),
+        el('dt', { text: 'カテゴリ' }), el('dd', { text: cat.label }),
+        el('dt', { text: '必読' }), el('dd', { text: content.mustRead ? 'あり(プッシュ通知が送られます)' : 'なし(プッシュ通知は送られません。ベル・タブの赤い点は全員に付きます)' }));
+      if (content.mustRead) {
+        // 通知の文言は各社 onAnnouncementNotify(タイトルを60文字で切る)と firebase-messaging-sw.js の組み立てと同じ
+        const cut = title.slice(0, 60);
+        const countCell = el('dd', { text: '取得中…' });
+        session.countCells[co.def.key] = countCell;
+        dl.append(
+          el('dt', { text: 'ロック画面' }),
+          el('dd', {},
+            el('div', { class: 'lock-preview' },
+              el('div', { class: 'lp-title', text: '📢 必読お知らせ' }),
+              el('div', { text: `📌 必読: ${cut}` })),
+            title.length > 60 ? el('div', { class: 'sub-hint', text: 'タイトルが60文字を超えるため、ここで切れます' }) : null),
+          el('dt', { text: '通知の対象' }), countCell);
+      }
+      dl.append(el('dt', { text: 'その他' }), el('dd', { text: others }));
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${co.login.code} でログイン中` })),
+        el('div', { class: 'co-body' }, dl)));
+    }
+    const skips = $('#cf-skips');
+    skips.textContent = '';
+    for (const s of session.skipped) {
+      skips.append(el('div', { class: 'cf-skip', text: `${s.co.def.label}(${s.co.def.config.projectId}): 送らない — ${s.reason}` }));
+    }
+    const sendBtn = $('#cf-send');
+    sendBtn.textContent = session.mode === 'retry' ? `${session.targets[0].def.label} に再送する` : `送信する(${session.targets.length}社)`;
+    sendBtn.disabled = content.mustRead; // 必読のときは人数の取得(成功・失敗とも)を待ってから押せるようにする
+    $('#confirm-dialog').showModal();
+    $('#cf-cancel').focus();
+    if (content.mustRead) fetchCounts(session);
+  }
+
+  async function fetchAudience(co) {
+    // 各社アプリ openNotifySendConfirm() と同じ呼び出し(管理者のみ・asia-northeast1)
+    const callable = co.fns.httpsCallable('estimateNotifyAudience', { timeout: 20000 });
+    const res = await callable({ eventKey: 'mustReadAnnouncement', role: 'driver' });
+    const n = res && res.data ? res.data.count : undefined;
+    if (typeof n !== 'number') throw new Error('人数が返ってきませんでした');
+    return n;
+  }
+
+  async function fetchCounts(session) {
+    await Promise.allSettled(session.targets.map(async co => {
+      const cell = session.countCells[co.def.key];
+      try {
+        const n = await fetchAudience(co);
+        if (confirmSession !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ok', text: `通知を許可している約${n}名` }));
+      } catch (e) {
+        console.error(`[${co.def.label}] 概算人数の取得に失敗:`, e);
+        if (confirmSession !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ng', text: '概算人数を取得できませんでした' }),
+          el('div', { class: 'sub-hint', text: `(${errText(e)})送信はできます。` }));
+      }
+    }));
+    if (confirmSession === session) $('#cf-send').disabled = false;
+  }
+
+  function closeConfirm() {
+    confirmSession = null;
+    const d = $('#confirm-dialog');
+    if (d.open) d.close();
+  }
+
+  /* ===== 書き込み(無ければ作る。既存は上書きしない) ===== */
+  function buildPayload(co, content) {
+    const FV = firebase.firestore.FieldValue;
+    return {
+      title: forCompany(content.title, co),
+      body: forCompany(content.body, co),
+      category: content.category,
+      priority: content.priority,
+      target: 'all',
+      pinned: content.pinned,
+      mustRead: content.mustRead,
+      readDeadline: content.readDeadline,
+      tags: content.tags.slice(),
+      status: 'published',
+      scheduledAt: null,
+      updatedAt: FV.serverTimestamp(),
+      authorUid: co.login.code,
+      authorName: resolveAuthorName(co, content),
+      createdAt: FV.serverTimestamp(),
+      publishedAt: FV.serverTimestamp(),
+    };
+  }
+
+  // 書き込む直前の形の確認。ルールが項目の形を検査しないため、ここで崩れたものを止める
+  function checkPayload(p) {
+    const keys = Object.keys(p).sort().join(',');
+    if (keys !== PAYLOAD_KEYS.slice().sort().join(',')) throw new Error('書き込む項目が想定と違います');
+    const isStr = v => typeof v === 'string';
+    const bad = [];
+    if (!isStr(p.title) || !p.title || p.title !== p.title.trim()) bad.push('title');
+    if (!isStr(p.body) || !p.body || p.body !== p.body.trim()) bad.push('body');
+    if (!CATEGORIES.some(c => c.id === p.category)) bad.push('category');
+    if (!PRIORITIES.some(x => x.id === p.priority)) bad.push('priority');
+    if (p.target !== 'all') bad.push('target');
+    if (typeof p.pinned !== 'boolean') bad.push('pinned');
+    if (typeof p.mustRead !== 'boolean') bad.push('mustRead');
+    if (!(p.readDeadline === null || (isStr(p.readDeadline) && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(p.readDeadline)))) bad.push('readDeadline');
+    if (!Array.isArray(p.tags) || p.tags.length > 5 || new Set(p.tags).size !== p.tags.length
+        || !p.tags.every(t => isStr(t) && t.length > 0 && t.length <= 20)) bad.push('tags');
+    if (p.status !== 'published') bad.push('status');
+    if (p.scheduledAt !== null) bad.push('scheduledAt');
+    if (!isStr(p.authorUid) || !p.authorUid) bad.push('authorUid');
+    if (!isStr(p.authorName) || !p.authorName.trim()) bad.push('authorName');
+    for (const k of ['updatedAt', 'createdAt', 'publishedAt']) {
+      if (!(p[k] instanceof firebase.firestore.FieldValue)) bad.push(k);
+    }
+    if (bad.length) throw new Error('書き込む内容の形が正しくありません: ' + bad.join(', '));
+  }
+
+  // トランザクションで読み取り → 無ければ作成、あれば何もしない。
+  // 既存ドキュメントへの set() の上書きは、notifiedAt が消えて必読通知が二重に飛ぶため行わない。
+  // 先にサーバーから読み、既にあればトランザクションを始めない(読んだだけのトランザクションでも、
+  // 確認用の書き込み(verify)が既存ドキュメントに届くため。エミュレーターではこれで onAnnouncementNotify が起動した)
+  async function writeOnce(co, id, payload) {
+    const ref = co.db.collection('announcements').doc(id);
+    const pre = await ref.get({ source: 'server' });
+    if (pre.exists) return { created: false, existing: pre.data() };
+    return co.db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (snap.exists) return { created: false, existing: snap.data() };
+      tx.set(ref, payload);
+      return { created: true, existing: null };
+    });
+  }
+
+  function withTimeout(promise, ms) {
+    let timer;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('時間内に完了しませんでした(書き込まれたかどうかは「同じIDで再送」で確かめられます)')), ms);
+      }),
+    ]).finally(() => clearTimeout(timer));
+  }
+
+  async function sendOne(co, session) {
+    const row = broadcast.rows[co.def.key];
+    row.status = 'sending';
+    row.detail = '';
+    renderResults();
+    try {
+      const elig = eligibility(co, session.content); // 送る直前にもう一度確かめる
+      if (!elig.ok) throw new Error(elig.reason);
+      const payload = buildPayload(co, session.content);
+      checkPayload(payload);
+      const r = await withTimeout(writeOnce(co, session.id, payload), WRITE_TIMEOUT_MS);
+      if (r.created) {
+        row.status = 'success';
+        row.detail = '';
+        row.author = `${payload.authorName}(${payload.authorUid})`;
+      } else if (r.existing && r.existing.title === payload.title && r.existing.body === payload.body
+                 && r.existing.authorUid === payload.authorUid) {
+        // 前回の書き込みが届いていた(応答だけ失われた)場合。重複は作っていない
+        row.status = 'success';
+        row.detail = '作成済みを確認(今回は書き込みなし・重複なし)';
+        row.author = `${r.existing.authorName}(${r.existing.authorUid})`;
+      } else {
+        row.status = 'failed';
+        row.detail = '同じIDの別のお知らせがあります(書き込みませんでした)';
+      }
+    } catch (e) {
+      console.error(`[${co.def.label}] 書き込みに失敗:`, e);
+      row.status = 'failed';
+      row.detail = errText(e);
+    }
+    row.at = new Date();
+    row.attempts = (row.attempts || 0) + 1;
+    renderResults();
+  }
+
+  async function runSession(session) {
+    writing = true;
+    try {
+      if (session.mode === 'initial') {
+        const rows = {};
+        for (const co of cos) {
+          const skip = session.skipped.find(s => s.co === co);
+          rows[co.def.key] = skip
+            ? { status: 'skipped', detail: skip.reason }
+            : { status: 'waiting', detail: '' };
+        }
+        broadcast = { id: session.id, content: session.content, sentAt: new Date(), rows };
+        $('#result-section').hidden = false;
+        renderAll();
+        $('#result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      // 社ごとに順番に。1社が失敗しても他社は止めない
+      for (const co of session.targets) {
+        await sendOne(co, session);
+      }
+    } finally {
+      writing = false;
+      renderAll();
+    }
+  }
+
+  function onConfirmSend() {
+    const session = confirmSession;
+    if (!session || writing) return;
+    $('#cf-send').disabled = true;
+    closeConfirm();
+    runSession(session);
+  }
+
+  /* ===== 結果 ===== */
+  const STATUS_LABEL = { success: '成功', failed: '失敗', skipped: '対象外', sending: '送信中…', waiting: '待機中' };
+
+  function renderResults() {
+    const sec = $('#result-section');
+    if (!broadcast) { sec.hidden = true; return; }
+    sec.hidden = false;
+    $('#rs-meta').textContent = `一括送信ID: ${broadcast.id} ・ 送信開始: ${fmtNow(broadcast.sentAt)}`;
+    const tbody = $('#rs-rows');
+    tbody.textContent = '';
+    for (const co of cos) {
+      const row = broadcast.rows[co.def.key];
+      const wrote = row.status !== 'skipped' && row.status !== 'waiting';
+      let action = null;
+      if (row.status === 'failed') {
+        const elig = eligibility(co, broadcast.content);
+        action = el('button', {
+          type: 'button', class: 'btn small', text: '同じIDで再送',
+          dataset: { retry: co.def.key },
+          disabled: writing || !elig.ok,
+          title: elig.ok ? '' : elig.reason,
+        });
+      }
+      tbody.append(el('tr', { style: `--co:${co.def.color}` },
+        el('td', {}, el('div', { class: 'rs-co' }, co.def.label, el('span', { class: 'co-pid', text: co.def.config.projectId }))),
+        el('td', {},
+          el('span', { class: 'st-' + row.status, text: STATUS_LABEL[row.status] || row.status }),
+          row.detail ? el('span', { class: 'st-detail', text: row.detail }) : null),
+        el('td', { class: 'mono', text: wrote ? `announcements/${broadcast.id}` : '—' }),
+        el('td', {}, action)));
+    }
+    $('#rs-text').value = resultText();
+    $('#btn-new').disabled = writing;
+  }
+
+  function resultText() {
+    const b = broadcast;
+    const c = b.content;
+    const cat = CATEGORIES.find(x => x.id === c.category);
+    const lines = [
+      `周知 一括投稿(matomete-broadcast ${TOOL_VERSION}${EMULATOR ? '・エミュレーター' : ''})`,
+      `一括送信ID: ${b.id}`,
+      `送信開始: ${fmtNow(b.sentAt)}`,
+      `タイトル(差し込み前): ${c.title}`,
+      `カテゴリ: ${cat ? cat.label : c.category} / 必読: ${c.mustRead ? 'あり' : 'なし'} / 既読期限: ${c.readDeadline || 'なし'}`,
+    ];
+    for (const co of cos) {
+      const r = b.rows[co.def.key];
+      const label = STATUS_LABEL[r.status] || r.status;
+      const doc = r.status === 'success' ? ` announcements/${b.id}` : '';
+      const detail = r.detail ? `(${r.detail})` : '';
+      const at = r.at ? ` ${fmtNow(r.at)}` : '';
+      const author = r.status === 'success' && r.author ? ` 投稿者: ${r.author}` : '';
+      lines.push(`- ${co.def.label}(${co.def.config.projectId}): ${label}${detail}${doc}${author}${at}`);
+    }
+    return lines.join('\n');
+  }
+
+  async function copyResult() {
+    const text = resultText();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('結果をコピーしました');
+    } catch (e) {
+      const ta = $('#rs-text');
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      toast(ok ? '結果をコピーしました' : '自動でコピーできませんでした。枠内を選択してコピーしてください');
+    }
+  }
+
+  function resetForNew() {
+    const d = $('#reset-dialog');
+    if (d.open) d.close();
+    if (writing) return;
+    broadcast = null;
+    $('#f-title').value = '';
+    $('#f-body').value = '';
+    $('#f-author').value = '';
+    $('#f-tag-input').value = '';
+    $('#f-mustread').checked = false;
+    $('#f-pinned').checked = false;
+    $('#f-deadline').checked = false;
+    form.category = 'work';
+    form.priority = 'normal';
+    form.tags = [];
+    initDeadlineDefaults();
+    showTagError('');
+    renderCats();
+    renderPrios();
+    renderTags();
+    setComposeLocked(false);
+    renderAll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function setComposeLocked(locked) {
+    $('#compose-fields').disabled = locked;
+  }
+
+  /* ===== 入力フォームの組み立て ===== */
+  function renderCats() {
+    const box = $('#f-cats');
+    box.textContent = '';
+    CATEGORIES.forEach(c => box.append(el('button', {
+      type: 'button', class: 'chip', text: c.label,
+      dataset: { cat: c.id }, 'aria-pressed': String(form.category === c.id),
+    })));
+  }
+
+  function renderPrios() {
+    const box = $('#f-prios');
+    box.textContent = '';
+    PRIORITIES.forEach(x => box.append(el('button', {
+      type: 'button', class: 'prio-btn', 'aria-label': `優先度 ${x.label}`,
+      dataset: { prio: x.id }, 'aria-pressed': String(form.priority === x.id),
+    }, el('span', { text: x.icon, 'aria-hidden': 'true' }), el('span', { text: x.label }))));
+  }
+
+  function initDeadlineDefaults() {
+    // 各社アプリと同じ: 日付の初期値は3日後、時刻は 23:59
+    const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const p = n => String(n).padStart(2, '0');
+    $('#f-dl-date').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    $('#f-dl-time').value = '23:59';
+    $('#f-dl-fields').hidden = !$('#f-deadline').checked;
+  }
+
+  function insertPlaceholder() {
+    const target = form.lastFocus === 'title' ? $('#f-title') : $('#f-body');
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    target.setRangeText(PLACEHOLDER, start, end, 'end');
+    target.focus();
+    renderAll();
+  }
+
+  function wireForm() {
+    renderCats();
+    renderPrios();
+    renderTags();
+    initDeadlineDefaults();
+
+    ['#f-title', '#f-body', '#f-author', '#f-dl-date', '#f-dl-time'].forEach(sel => {
+      $(sel).addEventListener('input', renderAll);
+    });
+    $('#f-title').addEventListener('focus', () => { form.lastFocus = 'title'; });
+    $('#f-body').addEventListener('focus', () => { form.lastFocus = 'body'; });
+    ['#f-mustread', '#f-pinned'].forEach(sel => $(sel).addEventListener('change', renderAll));
+    $('#f-deadline').addEventListener('change', () => {
+      $('#f-dl-fields').hidden = !$('#f-deadline').checked;
+      renderAll();
+    });
+    $('#f-cats').addEventListener('click', e => {
+      const b = e.target.closest('[data-cat]');
+      if (!b) return;
+      form.category = b.dataset.cat;
+      renderCats();
+      renderAll();
+    });
+    $('#f-prios').addEventListener('click', e => {
+      const b = e.target.closest('[data-prio]');
+      if (!b) return;
+      form.priority = b.dataset.prio;
+      renderPrios();
+      renderAll();
+    });
+    $('#f-tag-wrap').addEventListener('click', e => {
+      const rm = e.target.closest('[data-tag-index]');
+      if (rm) {
+        form.tags.splice(Number(rm.dataset.tagIndex), 1);
+        renderTags();
+        renderAll();
+        return;
+      }
+      $('#f-tag-input').focus();
+    });
+    $('#f-tag-input').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return; // 日本語入力の変換確定の Enter では追加しない
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const r = addTagFromInput();
+        showTagError(r.error);
+        renderTags();
+        renderAll();
+      } else if (e.key === 'Backspace' && !e.target.value && form.tags.length > 0) {
+        form.tags.pop();
+        renderTags();
+        renderAll();
+      }
+    });
+    $('#f-tag-input').addEventListener('input', () => showTagError(''));
+    $('#btn-insert-placeholder').addEventListener('click', insertPlaceholder);
+
+    $('#btn-confirm').addEventListener('click', openConfirm);
+    $('#cf-cancel').addEventListener('click', closeConfirm);
+    $('#confirm-dialog').addEventListener('cancel', e => { e.preventDefault(); closeConfirm(); }); // Esc もキャンセル扱い
+    $('#cf-send').addEventListener('click', onConfirmSend);
+    $('#rs-rows').addEventListener('click', e => {
+      const b = e.target.closest('[data-retry]');
+      if (b && !b.disabled) openRetryConfirm(b.dataset.retry);
+    });
+    $('#btn-copy').addEventListener('click', copyResult);
+    $('#btn-new').addEventListener('click', () => { if (!writing) $('#reset-dialog').showModal(); });
+    $('#rd-cancel').addEventListener('click', () => $('#reset-dialog').close());
+    $('#rd-ok').addEventListener('click', resetForNew);
+    window.addEventListener('beforeunload', e => {
+      if (writing) { e.preventDefault(); e.returnValue = ''; }
+    });
+  }
+
+  /* ===== 起動 ===== */
+  if (EMULATOR) {
+    $('#emu-banner').hidden = false;
+    $('#mode-badge').textContent = 'エミュレーター';
+    $('#mode-badge').classList.add('emu');
+    document.title = '周知 一括投稿ツール(エミュレーター)';
+  }
+  cos.forEach(co => {
+    $('#login-grid').append(buildLoginCard(co));
+    $('#preview-grid').append(buildPreviewCard(co));
+  });
+  wireForm();
+  $('#app').hidden = false;
+  $('#actionbar').hidden = false;
+  booted = true;
+  renderAll();
+
+  if (EMULATOR) {
+    // 検証用のつなぎ口(エミュレーター接続のときだけ公開する)
+    window.__broadcastTest = { cos, writeOnce, buildPayload, checkPayload, getBroadcast: () => broadcast };
+  }
+})();
+</script>
 </body>
 </html>

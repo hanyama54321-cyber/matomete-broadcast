@@ -22,12 +22,13 @@
 
 | 使う端末 | 開き方 |
 |---|---|
-| マイPC | `start-broadcast.bat` をダブルクリックすると `http://localhost:8765/broadcast.html` が開く(開かなければ手で開く)。使い終わったら黒い画面を閉じる(または Ctrl+C) |
-| 会社ネットワーク外のPC | 公開URL https://hanyama54321-cyber.github.io/matomete-broadcast/ を開く(`broadcast.html` に移る) |
+| マイPC | `start-broadcast.bat` をダブルクリックすると `http://localhost:8765/` が開く(開かなければ手で開く)。使い終わったら黒い画面を閉じる(または Ctrl+C) |
+| 会社ネットワーク外のPC | 公開URL https://hanyama54321-cyber.github.io/matomete-broadcast/ を開く |
 
-- それ以外の開き方では、Firebase に接続せず、ログイン欄・入力欄・送信ボタンも出ません(案内の文だけが出る)。ログインも送信もできません。たとえば `broadcast.html` をファイルとして直接開いたとき(`file://`)、`localhost` の別のポート、`github.io` のほかのパスに置いた写し、ほかのページの中に埋め込まれたとき
+- それ以外の開き方では、Firebase に接続せず、ログイン欄・入力欄・送信ボタンも出ません(案内の文だけが出る)。ログインも送信もできません。たとえば `index.html` をファイルとして直接開いたとき(`file://`)、`localhost` の別のポート、`github.io` のほかのパスに置いた写し、ほかのページの中に埋め込まれたとき
 - エミュレーター接続(`?emulator=1`)は `localhost:8765` のときだけ使えます。公開URLに `?emulator` を付けると締め出されます
-- 簡易サーバー(`serve.js`)は `broadcast.html` だけを返し、このPCの中からしか接続できません
+- 簡易サーバー(`serve.js`)はツール本体(`index.html`)だけを `/` で返し、このPCの中からしか接続できません。0.1.0 までの `http://localhost:8765/broadcast.html` は、`?emulator=1` などを保ったまま `/` に移ります
+- 0.2.0 からツール本体は `index.html` です(0.1.0 までの `broadcast.html` は無くなりました)。公開URLの直下で本体を直接開くため、`?emulator` が付いていれば必ず締め出せます
 - 公開URLで使い終わったら、タブを閉じてください(ログインはタブを閉じると消えます)
 
 ## 使い方
@@ -111,14 +112,14 @@
 
 ### 各社アプリ側を変えたとき
 
-このツールは、各社アプリの次の部分を写して作っています。アプリ側を変えたら、ツールも合わせて直してください(`broadcast.html` の該当箇所にもコメントがあります)。
+このツールは、各社アプリの次の部分を写して作っています。アプリ側を変えたら、ツールも合わせて直してください(ツール本体 `index.html` の該当箇所にもコメントがあります)。
 
-- 各社 `index.html` 冒頭の `firebaseConfig`(→ `COMPANIES`)。projectId・authDomain・Functions のリージョンを変えたら、`broadcast.html` の `<head>` にある Content-Security-Policy の宛先(`connect-src`・`frame-src`)も直す
+- 各社 `index.html` 冒頭の `firebaseConfig`(→ `COMPANIES`)。projectId・authDomain・Functions のリージョンを変えたら、ツール本体 `index.html` の `<head>` にある Content-Security-Policy の宛先(`connect-src`・`frame-src`)も直す
 - ログイン方式 `AUTH_EMAIL_DOMAIN` / `AUTH_PW_SUFFIX`
 - エディタのカテゴリ(`annCategories`)・優先度・既定値・タグの正規化(`addEdTagFromInput()`)
 - 投稿の項目(`saveAnn()` / `submitAnnPayload()` → `PAYLOAD_KEYS`・`buildPayload()`・`checkPayload()`)
 - `announcements` のルール、`onAnnouncementNotify`(タイトルを60文字で切る)、`firebase-messaging-sw.js` の通知文言、`estimateNotifyAudience` の呼び方
-- 動いてよい場所は `broadcast.html` の `judgePlace()`(`LOCAL_PORT`・`PAGES_HOST`・`PAGES_PATH`)で決めている。リポジトリ名・GitHub のアカウント名・`serve.js` のポートを変えたら、ここも直す
+- 動いてよい場所はツール本体 `index.html` の `judgePlace()`(`LOCAL_PORT`・`PAGES_HOST`・`PAGES_PATH`)で決めている。リポジトリ名・GitHub のアカウント名・`serve.js` のポートを変えたら、ここも直す
 - `COMPANIES` の `rendersHtml` は、お知らせを HTML のまま表示する社を `< > &` を含む投稿の送信先から外す仕組み。いまは3社とも `false`(HI-LINE は 0.4.9 で解除)。各社アプリでお知らせの表示を変えるときは、文字として表示する作り(`escHtml()`)を崩さないこと。崩れた社が出たら、その社を `true` にする
 
 ### 検証について
@@ -136,7 +137,7 @@ node emulator/seed.js                                                 (検証用
 node serve.js                                                         (ツールの簡易サーバー)
 ```
 
-- ツールは `http://localhost:8765/broadcast.html?emulator=1` で開くとエミュレーターに接続します(画面上部にオレンジの帯が出る)
+- ツールは `http://localhost:8765/?emulator=1` で開くとエミュレーターに接続します(画面上部にオレンジの帯が出る)
 - 各社アプリの写し(エミュレーター接続版)は `http://localhost:8766/hiline/index.html`(`alogi` / `meiho` も同様)。比較用の投稿をアプリから作れます
 - 検証用アカウント(コード・パスワード)は `emulator/config.js` の `TEST_USERS`。エミュレーターの中にだけあり、本番とは無関係です
 - 中身の確認: `node emulator/inspect.js list`(一覧)/ `compare <key> <idA> <idB>`(項目名・型の比較)/ `fnlog`(`onAnnouncementNotify` の実行回数)/ `tokens`
@@ -146,8 +147,7 @@ node serve.js                                                         (ツール
 
 | ファイル | 内容 |
 |---|---|
-| `broadcast.html` | ツール本体(1枚) |
-| `index.html` | 公開URLの直下を開いたときに `broadcast.html` へ移るだけのページ(スクリプトなし) |
+| `index.html` | ツール本体(1枚)。0.1.0 までは `broadcast.html` という名前だった |
 | `.nojekyll` | GitHub Pages にファイルをそのまま配らせるための空ファイル |
 | `serve.js` | マイPCの中だけで開くための簡易サーバー(依存パッケージなし) |
 | `start-broadcast.bat` | マイPCでの起動用(`serve.js` を起動してブラウザを開く) |
@@ -157,7 +157,7 @@ node serve.js                                                         (ツール
 
 外部から読み込むのは gstatic の Firebase JS SDK(compat 10.14.1。各社アプリと同じ版)だけです。内容が書き換えられていたら読み込まないよう integrity を付けています。
 
-通信できる宛先は、SDK のコードで確かめた次のものだけに絞っています(`broadcast.html` の Content-Security-Policy)。
+通信できる宛先は、SDK のコードで確かめた次のものだけに絞っています(ツール本体 `index.html` の Content-Security-Policy)。
 
 | 宛先 | 用途 |
 |---|---|
@@ -170,4 +170,4 @@ node serve.js                                                         (ツール
 公開URLで使うときの注意:
 
 - 公開URLは各社アプリ(`/matomete-app/` など)と同じ `https://hanyama54321-cyber.github.io` のサイトにあり、ブラウザの保存領域を共有します。ツールのログイン情報はタブ単位で保存し、保存名(`firebase:authUser:…:hiline` など)と記憶するコードの名前(`matomete-broadcast:` で始まる)は各社アプリと重なりません。使い終わったらタブを閉じてください
-- GitHub Pages では「ほかのページへの埋め込み禁止」をヘッダーで指定できないため、`broadcast.html` が埋め込まれたことを自分で調べて締め出します
+- GitHub Pages では「ほかのページへの埋め込み禁止」をヘッダーで指定できないため、ツールが埋め込まれたことを自分で調べて締め出します

@@ -1,5 +1,5 @@
 // エミュレーター検証の共通設定。本番の Firebase には一切触れない。
-// ポート(auth / firestore / functions)は broadcast.html の COMPANIES[].emulatorPorts と一致させること
+// ポート(auth / firestore / functions)はツール本体 index.html の COMPANIES[].emulatorPorts と一致させること
 'use strict';
 
 const os = require('os');
