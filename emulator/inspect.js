@@ -2,7 +2,7 @@
 //   node emulator/inspect.js list                        3社の announcements の一覧
 //   node emulator/inspect.js get <key> <id>              1件の全項目を型つきで表示
 //   node emulator/inspect.js compare <key> <idA> <idB>   同じ社の2件を項目名・型で機械的に比べる(違えば終了コード1)
-//   node emulator/inspect.js fnlog                       各社の onAnnouncementNotify の実行回数と、送信まで進んだ回数(emulator.log から)
+//   node emulator/inspect.js fnlog                       各社の onAnnouncementNotify の実行回数と、送信まで進んだ回数、sendUnreadReminder が送信まで進んだ回数(emulator.log から)
 //   node emulator/inspect.js tokens                      各社の架空の通知トークンの件数
 // key は hiline / alogi / meiho
 'use strict';
@@ -81,9 +81,17 @@ function cmdFnlog() {
     const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
     const lines = text.split(/\r?\n/);
     const began = lines.filter(l => /Beginning execution of .*onAnnouncementNotify/.test(l)).length;
-    const reached = lines.filter(l => l.includes('送信対象トークンなし(0件)') || l.includes('送信結果:')).length;
     const errors = lines.filter(l => /onAnnouncementNotify/.test(l) && /error|Error|失敗/.test(l)).length;
-    console.log(`${c.label}: onAnnouncementNotify の実行 ${began} 回 / 送信まで進んだ回数 ${reached} 回 / エラーらしき行 ${errors}`);
+    // 「送信まで進んだ」行(lib/send.js のログ)を、直前に始まった関数ごとに数える。
+    // callable はブラウザの事前確認(OPTIONS)でも Beginning/Finished が出るため、Beginning の数では数えない
+    const reached = {};
+    let current = '';
+    for (const l of lines) {
+      const m = /Beginning execution of "(?:[\w-]+-)?(\w+)"/.exec(l);
+      if (m) current = m[1];
+      else if (l.includes('送信対象トークンなし(0件)') || l.includes('送信結果:')) reached[current] = (reached[current] || 0) + 1;
+    }
+    console.log(`${c.label}: onAnnouncementNotify の実行 ${began} 回・送信まで進んだ回数 ${reached.onAnnouncementNotify || 0} 回 / エラーらしき行 ${errors} / sendUnreadReminder の送信まで進んだ回数 ${reached.sendUnreadReminder || 0} 回`);
   }
 }
 

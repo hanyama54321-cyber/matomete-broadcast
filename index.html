@@ -291,6 +291,45 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 .rs-text { width: 100%; min-height: 150px; margin-top: 12px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
 .rs-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
+/* ===== 機能のタブ ===== */
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; border-bottom: 2px solid var(--border); }
+.tab {
+  border: 1px solid var(--border); border-bottom: none; background: var(--surface2); color: var(--text-sub);
+  border-radius: 10px 10px 0 0; padding: 8px 16px; font-weight: 700; cursor: pointer; margin-bottom: -2px;
+}
+.tab[aria-selected="true"] { background: var(--surface); color: var(--navy); border-color: var(--border); border-bottom: 2px solid var(--surface); }
+
+/* ===== 送ったお知らせ ===== */
+.sent-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  width: 100%; text-align: left; background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 12px; margin-top: 8px; cursor: pointer;
+}
+.sent-row:hover { border-color: var(--primary); }
+.sent-row .sr-title { font-weight: 700; color: var(--navy); overflow-wrap: anywhere; }
+.sent-row .sr-meta { font-size: 12px; color: var(--text-sub); grid-column: 1 / -1; }
+.sent-row .sr-cos { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.co-pill { font-size: 11px; font-weight: 700; color: #fff; background: var(--co); border-radius: 999px; padding: 1px 8px; }
+.sd-title { margin: 0 0 4px; font-size: 17px; color: var(--navy); overflow-wrap: anywhere; }
+.rd-nums { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.rd-num b { font-size: 20px; color: var(--navy); }
+.rd-num span { font-size: 12px; color: var(--text-sub); margin-left: 3px; }
+.rd-list { list-style: none; margin: 4px 0 8px; padding: 0; max-height: 260px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.rd-list li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rd-list li:last-child { border-bottom: none; }
+.rd-list .code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text-sub); white-space: nowrap; }
+.rd-list .nm { min-width: 0; overflow-wrap: anywhere; }
+.rd-list .mark { font-size: 12px; font-weight: 700; white-space: nowrap; margin-left: 6px; color: var(--text-muted); }
+.rd-list .mark.acked { color: var(--safe); }
+.rd-sub { font-weight: 700; font-size: 13px; color: var(--navy); margin-top: 6px; }
+.rd-detail summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--navy); margin-top: 6px; }
+.rd-pick { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 13px; font-weight: 700; }
+.remind-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding: 12px 14px; border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: 10px;
+}
+.remind-bar .t-title { font-weight: 700; color: var(--navy); }
+
 .toast {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
   background: #1E2A3D; color: #fff; padding: 9px 18px; border-radius: 999px; font-size: 13px; font-weight: 700;
@@ -323,7 +362,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.2.2</span>
+  <span class="ver">Ver.0.3.0</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -336,6 +375,13 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     <div class="co-grid" id="login-grid"></div>
   </section>
 
+  <!-- 機能の切り替え(ログインしている社だけが対象) -->
+  <nav class="tabs" role="tablist" aria-label="機能">
+    <button type="button" class="tab" role="tab" id="tab-send" aria-selected="true" aria-controls="pane-send" data-tab="send">お知らせを送る</button>
+    <button type="button" class="tab" role="tab" id="tab-sent" aria-selected="false" aria-controls="pane-sent" data-tab="sent">送ったお知らせ</button>
+  </nav>
+
+  <div id="pane-send" role="tabpanel" aria-labelledby="tab-send">
   <!-- 2. 入力(並び・既定値・選択肢は各社アプリの「新しいお知らせ」と同じ) -->
   <section class="step" aria-labelledby="h-compose">
     <h2 id="h-compose"><span class="num">2</span>お知らせの内容(1回だけ書く)</h2>
@@ -435,6 +481,40 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       <button type="button" class="btn ghost" id="btn-new">新しいお知らせを作る(入力を消す)</button>
     </div>
   </section>
+  </div>
+
+  <!-- 送ったお知らせ(既読状況と未読の人へのリマインド) -->
+  <div id="pane-sent" role="tabpanel" aria-labelledby="tab-sent" hidden>
+    <section class="step" id="sent-list-section" aria-labelledby="h-sent">
+      <h2 id="h-sent">送ったお知らせ</h2>
+      <p class="hint">このツールで一括送信したお知らせ(ID が bc- で始まるもの)を、ログインしている社から読みます。新しいものから30件まで。各社アプリで個別に出したお知らせは出ません。</p>
+      <div class="inline-row">
+        <button type="button" class="btn" id="btn-sent-load">読み込む</button>
+        <span class="sub-hint" id="sent-status" style="margin-top:0"></span>
+      </div>
+      <div id="sent-list"></div>
+    </section>
+
+    <section class="step" id="sent-detail" aria-labelledby="sd-title" hidden>
+      <div class="inline-row" style="margin-top:0;margin-bottom:10px">
+        <button type="button" class="btn ghost small" id="btn-sent-back">← 一覧に戻る</button>
+        <button type="button" class="btn ghost small" id="btn-detail-reload">読み直す</button>
+        <span class="sub-hint" id="sd-status" style="margin-top:0"></span>
+      </div>
+      <h2 id="sd-title" class="sd-title"></h2>
+      <div class="rs-meta" id="sd-meta"></div>
+      <div class="co-grid" id="sd-grid"></div>
+      <div class="remind-bar">
+        <div>
+          <div class="t-title">🔔 未読の人にリマインド</div>
+          <div class="sub-hint" style="margin-top:2px">各社の「送る」に印を付けた社だけに送ります(未読が0人の社は選べません)。各社アプリの「リマインド」と同じ処理です。</div>
+          <div class="pv-note" id="remind-note" hidden></div>
+        </div>
+        <button type="button" class="btn danger" id="btn-remind" disabled>リマインドの確認へ</button>
+      </div>
+      <div id="remind-result"></div>
+    </section>
+  </div>
 </main>
 
 <div class="actionbar" id="actionbar" hidden>
@@ -465,6 +545,25 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   </div>
 </dialog>
 
+<dialog class="confirm" id="remind-dialog" aria-labelledby="rm-title">
+  <div class="cf-wrap">
+    <div class="cf-head">
+      <h3 id="rm-title">未読リマインダーの確認</h3>
+      <div class="cf-meta" id="rm-meta"></div>
+    </div>
+    <div class="cf-body">
+      <div id="rm-again"></div>
+      <div class="cf-grid" id="rm-grid"></div>
+      <div class="cf-skip">必読のお知らせで「読んだが、確認しましたを押していない」人は対象外です(既読として扱う。各社アプリと同じ)。</div>
+    </div>
+    <div class="cf-foot">
+      <div class="cf-irrev">送信後は取り消せません。</div>
+      <button type="button" class="btn ghost" id="rm-cancel">キャンセル</button>
+      <button type="button" class="btn danger" id="rm-send" disabled>送信する</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="confirm small" id="reset-dialog" aria-labelledby="rd-title">
   <div class="cf-wrap">
     <div class="cf-head"><h3 id="rd-title">新しいお知らせを作りますか？</h3></div>
@@ -486,7 +585,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.2.2';
+  const TOOL_VERSION = '0.3.0';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -599,7 +698,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
   // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
   function lockOut(title, lines) {
-    ['#app', '#actionbar', '#confirm-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
       const node = $(sel);
       if (node) node.remove();
     });
@@ -1119,6 +1218,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     renderWarnings(content);
     renderActionBar(content);
     renderResults();
+    renderRemindBar();
   }
 
   /* ===== 確認画面 ===== */
@@ -1229,10 +1329,10 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     if (content.mustRead) fetchCounts(session);
   }
 
-  async function fetchAudience(co) {
+  async function fetchAudience(co, params = { eventKey: 'mustReadAnnouncement', role: 'driver' }) {
     // 各社アプリ openNotifySendConfirm() と同じ呼び出し(管理者のみ・asia-northeast1)
     const callable = co.fns.httpsCallable('estimateNotifyAudience', { timeout: 20000 });
-    const res = await callable({ eventKey: 'mustReadAnnouncement', role: 'driver' });
+    const res = await callable(params);
     const n = res && res.data ? res.data.count : undefined;
     if (typeof n !== 'number') throw new Error('人数が返ってきませんでした');
     return n;
@@ -1616,8 +1716,421 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#rd-cancel').addEventListener('click', () => $('#reset-dialog').close());
     $('#rd-ok').addEventListener('click', resetForNew);
     window.addEventListener('beforeunload', e => {
-      if (writing) { e.preventDefault(); e.returnValue = ''; }
+      if (writing || remindWriting) { e.preventDefault(); e.returnValue = ''; }
     });
+  }
+
+  /* ===== 送ったお知らせ(既読状況・未読リマインド) =====
+     扱うのはこのツールで一括送信したお知らせ(ID が bc- で始まるもの)だけ。読み込みはボタンを押したときに1回だけ。
+     数え方は各社アプリの到達率(fetchAnnAllDrivers() / buildAnnReadStatus())と同じ:
+       対象 = users で role が driver の人、既読 = announcements/{id}/reads/{コード} がある、未読 = 対象のうち reads が無い
+     リマインドは各社の sendUnreadReminder(各社アプリの「リマインド」と同じ callable)を社ごとに順番に呼ぶ */
+  const SENT_LIMIT = 30;
+  const sent = {
+    list: [],        // [{ id, perCo: { key: お知らせのデータ } }]
+    current: null,   // 詳細を開いているお知らせの ID
+    detail: {},      // key → { status: 'ok' | 'missing' | 'out' | 'error', ... }
+    pick: {},        // key → true(リマインドを送る社)
+    remindDone: false, // この表示で送ったあとは押せなくする(「読み直す」で戻る)
+  };
+  let remindSession = null;
+  let remindWriting = false;
+
+  function setTab(name) {
+    for (const t of ['send', 'sent']) {
+      $('#tab-' + t).setAttribute('aria-selected', String(t === name));
+      $('#pane-' + t).hidden = t !== name;
+    }
+    $('#actionbar').hidden = name !== 'send';
+  }
+
+  function tsToDate(v) {
+    return v && typeof v.toDate === 'function' ? v.toDate() : null;
+  }
+
+  function dateFromId(id) {
+    const m = /^bc-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})-/.exec(id);
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5])) : null;
+  }
+
+  function agoText(ms) {
+    const min = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+    if (min < 1) return 'たった今';
+    if (min < 60) return `${min}分前`;
+    if (min < 60 * 48) return `${Math.round(min / 60)}時間前`;
+    return `${Math.round(min / 1440)}日前`;
+  }
+
+  // リマインドを送った時刻を、お知らせ・社ごとに記録する(このブラウザの中だけ)。{ 社のkey: 送った時刻(ms) }
+  function readRemindLog(id) {
+    try {
+      const v = JSON.parse(storageGet('remind:' + id) || 'null');
+      const out = {};
+      if (v && typeof v === 'object') for (const c of COMPANIES) if (typeof v[c.key] === 'number') out[c.key] = v[c.key];
+      return out;
+    } catch (e) { return {}; }
+  }
+  function writeRemindLog(id, keys) {
+    const log = readRemindLog(id);
+    const now = Date.now();
+    for (const k of keys) log[k] = now;
+    storageSet('remind:' + id, JSON.stringify(log));
+  }
+  // 「HI-LINE は5分前(…)、A-LOGI は2時間前(…)」の形にする。前に送っていない社は出さない
+  function remindLogText(log, keys) {
+    return COMPANIES.filter(c => keys.includes(c.key) && log[c.key])
+      .map(c => `${c.label} は ${agoText(log[c.key])}(${fmtNow(new Date(log[c.key]))})`).join('、');
+  }
+
+  // 一覧: 各社の announcements から ID が bc- で始まるものを読み、ID(=送った日時順)の新しいものから30件を出す。
+  // ドキュメント ID での範囲指定は組み込みの索引で足りる(新しい索引は要らない)。
+  // ID の降順(orderBy(documentId, 'desc'))はエミュレーターが対応していない(「descending key scans」の失敗)ため、
+  // 昇順で bc- のものを全部読み、手元で新しい順に並べて絞る。一括送信の件数が数百件を超えたら読み方を見直す
+  async function loadSentList() {
+    const targets = cos.filter(co => co.phase === 'ready');
+    const status = $('#sent-status');
+    if (!targets.length) { status.textContent = 'ログインしている社がありません。上の欄でログインしてください'; return; }
+    $('#btn-sent-load').disabled = true;
+    status.textContent = '読み込み中…';
+    const FP = firebase.firestore.FieldPath.documentId();
+    const merged = new Map();
+    const errors = [];
+    await Promise.all(targets.map(async co => {
+      try {
+        const snap = await co.db.collection('announcements')
+          .where(FP, '>=', 'bc-').where(FP, '<', 'bc.')
+          .get();
+        snap.forEach(d => {
+          if (!merged.has(d.id)) merged.set(d.id, { id: d.id, perCo: {} });
+          merged.get(d.id).perCo[co.def.key] = d.data();
+        });
+      } catch (e) {
+        console.error(`[${co.def.label}] 送ったお知らせを読めませんでした:`, e);
+        errors.push(`${co.def.label}(${errText(e)})`);
+      }
+    }));
+    sent.list = [...merged.values()].sort((a, b) => (a.id < b.id ? 1 : -1)).slice(0, SENT_LIMIT);
+    status.textContent = `${fmtNow()} に読み込み(${targets.map(c => c.def.label).join('・')}。未ログインの社は含みません)`
+      + (errors.length ? ` / 読めなかった社: ${errors.join(' / ')}` : '');
+    $('#btn-sent-load').disabled = false;
+    renderSentList();
+  }
+
+  function renderSentList() {
+    const box = $('#sent-list');
+    box.textContent = '';
+    if (!sent.list.length) {
+      box.append(el('p', { class: 'sub-hint', text: '一括送信したお知らせは見つかりませんでした' }));
+      return;
+    }
+    for (const item of sent.list) {
+      const datas = Object.values(item.perCo);
+      const first = datas[0];
+      const when = tsToDate(first.createdAt) || dateFromId(item.id);
+      const titles = new Set(datas.map(d => d.title));
+      box.append(el('button', { type: 'button', class: 'sent-row', dataset: { sentId: item.id } },
+        el('span', { class: 'sr-title', text: String(first.title || '(タイトルなし)') + (titles.size > 1 ? '(社によってタイトルが違う)' : '') }),
+        el('span', { class: 'sr-cos' }, COMPANIES.filter(d => item.perCo[d.key]).map(d => el('span', { class: 'co-pill', style: `--co:${d.color}`, text: d.label }))),
+        el('span', { class: 'sr-meta', text: `${when ? fmtNow(when) : '—'} ・ ${first.mustRead ? '✋ 必読' : '必読なし'} ・ ${item.id}` })));
+    }
+  }
+
+  // 各社アプリ buildAnnReadStatus() と同じ数え方。確認済みは、対象(乗務員)のうち acked が付いた人
+  function buildReadStatus(drivers, readsMap) {
+    const read = drivers.filter(u => readsMap[u.code]).map(u => ({ ...u, acked: !!readsMap[u.code].acked }));
+    const unread = drivers.filter(u => !readsMap[u.code]);
+    const total = drivers.length;
+    return {
+      total, read, unread,
+      readCount: read.length,
+      pct: total === 0 ? 0 : Math.round(read.length / total * 100),
+      ackedCount: read.filter(u => u.acked).length,
+    };
+  }
+
+  async function openSentDetail(id) {
+    sent.current = id;
+    $('#sent-list-section').hidden = true;
+    $('#sent-detail').hidden = false;
+    $('#remind-result').textContent = '';
+    window.scrollTo({ top: $('#sent-detail').offsetTop - 60, behavior: 'smooth' });
+    await loadDetail();
+  }
+
+  function closeSentDetail() {
+    if (remindWriting) return;
+    sent.current = null;
+    $('#sent-detail').hidden = true;
+    $('#sent-list-section').hidden = false;
+  }
+
+  async function loadDetail() {
+    const id = sent.current;
+    if (!id || remindWriting) return;
+    sent.detail = {};
+    sent.pick = {};
+    sent.remindDone = false;
+    $('#btn-detail-reload').disabled = true;
+    $('#sd-status').textContent = '読み込み中…';
+    renderDetail();
+    // 読み込み中に別のお知らせを開いたときに混ざらないよう、手元に集めてから入れる
+    const detail = {};
+    await Promise.all(cos.map(async co => {
+      const key = co.def.key;
+      if (co.phase !== 'ready') { detail[key] = { status: 'out' }; return; }
+      try {
+        const ref = co.db.collection('announcements').doc(id);
+        const doc = await ref.get({ source: 'server' });
+        if (!doc.exists) { detail[key] = { status: 'missing' }; return; }
+        const [driversSnap, readsSnap] = await Promise.all([
+          co.db.collection('users').where('role', '==', 'driver').get(),
+          ref.collection('reads').get(),
+        ]);
+        const readsMap = {};
+        readsSnap.forEach(d => { readsMap[d.id] = d.data(); });
+        const drivers = driversSnap.docs.map(d => {
+          const n = d.data().name;
+          return { code: d.id, name: typeof n === 'string' ? n : '' };
+        });
+        detail[key] = { status: 'ok', ann: doc.data(), ...buildReadStatus(drivers, readsMap) };
+      } catch (e) {
+        console.error(`[${co.def.label}] 既読状況を読めませんでした:`, e);
+        detail[key] = { status: 'error', error: errText(e) };
+      }
+    }));
+    if (sent.current !== id) return;
+    sent.detail = detail;
+    $('#sd-status').textContent = `${fmtNow()} に読み込み`;
+    $('#btn-detail-reload').disabled = false;
+    renderDetail();
+  }
+
+  // showAck: 必読のとき、読んだ人に「確認済み / 未確認」を付ける
+  function personList(people, showAck) {
+    return el('ul', { class: 'rd-list' }, people.map(u => el('li', {},
+      el('span', { class: 'nm', text: u.name || '(名前なし)' }),
+      el('span', { class: 'code' }, u.code,
+        showAck ? el('span', { class: u.acked ? 'mark acked' : 'mark', text: u.acked ? '✓確認済み' : '未確認' }) : null))));
+  }
+
+  function renderDetail() {
+    const id = sent.current;
+    if (!id) return;
+    const item = sent.list.find(x => x.id === id);
+    const loaded = Object.values(sent.detail).find(d => d && d.ann);
+    const ann = (loaded && loaded.ann) || (item && Object.values(item.perCo)[0]) || null;
+    $('#sd-title').textContent = ann ? String(ann.title || '') : id;
+    $('#sd-meta').textContent = `一括送信ID: ${id}` + (ann ? ` ・ ${ann.mustRead ? '✋ 必読' : '必読なし'}` : '');
+    const grid = $('#sd-grid');
+    grid.textContent = '';
+    for (const co of cos) {
+      const key = co.def.key;
+      const d = sent.detail[key];
+      const body = el('div', { class: 'co-body' });
+      if (!d) body.append(el('div', { class: 'co-status muted', text: '読み込み中…' }));
+      else if (d.status === 'out') body.append(el('div', { class: 'co-status muted', text: '未ログインのため読めません' }));
+      else if (d.status === 'missing') body.append(el('div', { class: 'co-status err', text: 'この社にはありません(送っていない、または削除された)' }));
+      else if (d.status === 'error') body.append(el('div', { class: 'co-status err', text: '読めませんでした: ' + d.error }));
+      else {
+        const mustRead = !!d.ann.mustRead;
+        body.append(
+          el('div', { class: 'rd-nums' },
+            el('span', { class: 'rd-num' }, el('b', { text: String(d.total) }), el('span', { text: '名 対象' })),
+            el('span', { class: 'rd-num' }, el('b', { text: String(d.readCount) }), el('span', { text: `名 既読(${d.pct}%)` })),
+            mustRead ? el('span', { class: 'rd-num' }, el('b', { text: String(d.ackedCount) }), el('span', { text: '名 確認済み' })) : null,
+            el('span', { class: 'rd-num' }, el('b', { text: String(d.unread.length) }), el('span', { text: '名 未読' }))),
+          el('div', { class: 'rd-sub', text: `まだ読んでいない人(${d.unread.length}名)` }),
+          d.unread.length ? personList(d.unread) : el('div', { class: 'sub-hint', text: '未読の人はいません' }),
+          el('details', { class: 'rd-detail' },
+            el('summary', { text: `読んだ人(${d.readCount}名)` }),
+            d.read.length ? personList(d.read, mustRead) : el('div', { class: 'sub-hint', text: 'まだいません' })));
+        const can = d.unread.length > 0 && co.phase === 'ready' && !sent.remindDone && !remindWriting;
+        body.append(el('label', { class: 'rd-pick' },
+          el('input', { type: 'checkbox', dataset: { remindPick: key }, checked: can && !!sent.pick[key], disabled: !can }),
+          el('span', { text: d.unread.length ? 'この社の未読の人にリマインドを送る' : 'リマインド: 未読の人がいないので選べません' })));
+      }
+      grid.append(el('div', { class: 'co-card', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId })),
+        body));
+    }
+    renderRemindBar();
+  }
+
+  function remindTargets() {
+    return cos.filter(co => {
+      const d = sent.detail[co.def.key];
+      return sent.pick[co.def.key] && co.phase === 'ready' && d && d.status === 'ok' && d.unread.length > 0;
+    });
+  }
+
+  function renderRemindBar() {
+    if (!booted || !sent.current) return;
+    const btn = $('#btn-remind');
+    const note = $('#remind-note');
+    const text = remindLogText(readRemindLog(sent.current), COMPANIES.map(c => c.key));
+    if (text) {
+      note.textContent = `このお知らせのリマインドは、${text}に送りました`;
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+    if (sent.remindDone) {
+      btn.textContent = '送りました(「読み直す」と、もう一度送れます)';
+      btn.disabled = true;
+      return;
+    }
+    const n = remindTargets().length;
+    btn.textContent = n ? `リマインドの確認へ(${n}社)` : 'リマインドの確認へ';
+    btn.disabled = remindWriting || n === 0;
+  }
+
+  function openRemindConfirm() {
+    if (remindWriting || sent.remindDone) return;
+    const id = sent.current;
+    const targets = remindTargets();
+    if (!id || !targets.length) return;
+    // 選んだ社のうち、このお知らせのリマインドを前に送った社があるときだけ、もう一度送ることの確認を求める
+    const againText = remindLogText(readRemindLog(id), targets.map(c => c.def.key));
+    const session = { id, targets, countCells: {}, pending: targets.length, okAgain: !againText };
+    remindSession = session;
+    const anyAnn = sent.detail[targets[0].def.key].ann;
+    $('#rm-meta').textContent = `お知らせ: ${anyAnn.title} ・ 一括送信ID: ${id} ・ 現在時刻: ${fmtNow()} ・ 送信先: ${targets.map(c => c.def.label).join('・')}(${targets.length}社)`;
+    const again = $('#rm-again');
+    again.textContent = '';
+    if (againText) {
+      const chk = el('input', { type: 'checkbox', id: 'rm-again-ok' });
+      chk.addEventListener('change', () => { session.okAgain = chk.checked; updateRemindSend(session); });
+      again.append(el('div', { class: 'warn-box', text: `このお知らせのリマインドは、${againText}に送りました。もう一度送ると、その社の未読の人に同じ通知がもう一度届きます。` }),
+        el('label', { class: 'rd-pick', style: 'border-top:none;margin-bottom:10px' }, chk, el('span', { text: 'もう一度送ることを確認しました' })));
+    }
+    const grid = $('#rm-grid');
+    grid.textContent = '';
+    for (const co of targets) {
+      const d = sent.detail[co.def.key];
+      const cell = el('dd', { text: '取得中…' });
+      session.countCells[co.def.key] = cell;
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${co.login.code} でログイン中` })),
+        el('div', { class: 'co-body' },
+          el('dl', { class: 'cf-dl' },
+            el('dt', { text: 'タイトル' }), el('dd', { text: String(d.ann.title || '') }),
+            el('dt', { text: '未読の人' }), el('dd', { text: `${d.unread.length}名(この画面で読み込んだ時点)` }),
+            el('dt', { text: 'ロック画面' }),
+            el('dd', {}, el('div', { class: 'lock-preview' },
+              el('div', { class: 'lp-title', text: '🔔 未読リマインダー' }),
+              el('div', { text: '未読のお知らせがあります' }))),
+            el('dt', { text: '通知の対象' }), cell))));
+    }
+    $('#rm-send').textContent = `送信する(${targets.length}社)`;
+    updateRemindSend(session);
+    $('#remind-dialog').showModal();
+    $('#rm-cancel').focus();
+    targets.forEach(async co => {
+      const cell = session.countCells[co.def.key];
+      try {
+        const n = await fetchAudience(co, { eventKey: 'unreadReminder', role: 'driver', targetType: 'announcement', targetId: id });
+        if (remindSession !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ok', text: `未読で通知を許可している約${n}名` }));
+      } catch (e) {
+        console.error(`[${co.def.label}] 概算人数の取得に失敗:`, e);
+        if (remindSession !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ng', text: '概算人数を取得できませんでした' }),
+          el('div', { class: 'sub-hint', text: `(${errText(e)})送信はできます。` }));
+      } finally {
+        session.pending -= 1;
+        if (remindSession === session) updateRemindSend(session);
+      }
+    });
+  }
+
+  function updateRemindSend(session) {
+    $('#rm-send').disabled = session.pending > 0 || !session.okAgain;
+  }
+
+  function closeRemindConfirm() {
+    remindSession = null;
+    const d = $('#remind-dialog');
+    if (d.open) d.close();
+  }
+
+  async function onRemindSend() {
+    const session = remindSession;
+    if (!session || remindWriting || session.pending > 0 || !session.okAgain) return;
+    $('#rm-send').disabled = true;
+    closeRemindConfirm();
+    remindWriting = true;
+    sent.remindDone = true; // 送ったあとは押せなくする
+    renderDetail();
+    const results = session.targets.map(co => ({ co, state: 'waiting' }));
+    renderRemindResult(session, results);
+    // 社ごとに順番に。1社が失敗しても他社は止めない
+    for (const r of results) {
+      r.state = 'sending';
+      renderRemindResult(session, results);
+      try {
+        if (r.co.phase !== 'ready') throw new Error('未ログインになりました');
+        const res = await r.co.fns.httpsCallable('sendUnreadReminder', { timeout: 60000 })({ targetType: 'announcement', targetId: session.id });
+        const data = (res && res.data) || {};
+        r.state = 'ok';
+        r.unreadCount = data.unreadCount;
+        r.sentCount = data.sent;
+      } catch (e) {
+        console.error(`[${r.co.def.label}] リマインドの送信に失敗:`, e);
+        r.state = 'failed';
+        r.error = errText(e);
+      }
+      renderRemindResult(session, results);
+    }
+    const okKeys = results.filter(r => r.state === 'ok').map(r => r.co.def.key);
+    if (okKeys.length) writeRemindLog(session.id, okKeys);
+    remindWriting = false;
+    renderDetail();
+  }
+
+  function renderRemindResult(session, results) {
+    const box = $('#remind-result');
+    box.textContent = '';
+    box.append(el('div', { class: 'rd-sub', text: `リマインドの結果(${fmtNow()})` }),
+      el('ul', { class: 'rd-list' }, results.map(r => {
+        let text;
+        if (r.state === 'waiting') text = '待機中';
+        else if (r.state === 'sending') text = '送信中…';
+        else if (r.state === 'ok') text = `送信しました(未読 ${r.unreadCount}名・通知 ${r.sentCount}件)`;
+        else text = `失敗: ${r.error}`;
+        return el('li', {},
+          el('span', { class: 'rs-co', style: `--co:${r.co.def.color}`, text: r.co.def.label }),
+          el('span', { class: r.state === 'failed' ? 'st-failed' : r.state === 'ok' ? 'st-success' : 'st-sending', text }));
+      })),
+      el('div', { class: 'sub-hint', text: '「通知」は届けた端末の数です(未読でも、通知を許可していない人・端末を登録していない人には届きません)。' }));
+  }
+
+  function wireSent() {
+    $('#tab-send').addEventListener('click', () => setTab('send'));
+    $('#tab-sent').addEventListener('click', () => setTab('sent'));
+    $('#btn-sent-load').addEventListener('click', loadSentList);
+    $('#sent-list').addEventListener('click', e => {
+      const row = e.target.closest('[data-sent-id]');
+      if (row) openSentDetail(row.dataset.sentId);
+    });
+    $('#btn-sent-back').addEventListener('click', closeSentDetail);
+    $('#btn-detail-reload').addEventListener('click', loadDetail);
+    $('#sd-grid').addEventListener('change', e => {
+      const box = e.target.closest('[data-remind-pick]');
+      if (!box) return;
+      sent.pick[box.dataset.remindPick] = box.checked;
+      renderRemindBar();
+    });
+    $('#btn-remind').addEventListener('click', openRemindConfirm);
+    $('#rm-cancel').addEventListener('click', closeRemindConfirm);
+    $('#remind-dialog').addEventListener('cancel', e => { e.preventDefault(); closeRemindConfirm(); }); // Esc もキャンセル扱い
+    $('#rm-send').addEventListener('click', onRemindSend);
   }
 
   /* ===== 起動 ===== */
@@ -1632,6 +2145,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#preview-grid').append(buildPreviewCard(co));
   });
   wireForm();
+  wireSent();
   $('#app').hidden = false;
   $('#actionbar').hidden = false;
   booted = true;
