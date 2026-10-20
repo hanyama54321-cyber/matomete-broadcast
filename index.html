@@ -329,6 +329,16 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   margin-top: 14px; padding: 12px 14px; border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: 10px;
 }
 .remind-bar .t-title { font-weight: 700; color: var(--navy); }
+.fix-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.fix-h { margin: 0 0 10px; font-size: 16px; color: var(--navy); }
+.diff-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0 12px; }
+.diff-table th, .diff-table td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
+.diff-table th { background: var(--surface2); font-weight: 700; white-space: nowrap; }
+.df-old { color: var(--text-sub); text-decoration: line-through; white-space: pre-wrap; overflow-wrap: anywhere; }
+.df-new { font-weight: 700; color: var(--navy); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pick-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.pick-row:last-child { border-bottom: none; }
+.pick-row .why { display: block; font-size: 12px; color: var(--danger); font-weight: 600; }
 
 .toast {
   position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
@@ -362,7 +372,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.3.0</span>
+  <span class="ver">Ver.0.4.0</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -385,7 +395,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   <!-- 2. 入力(並び・既定値・選択肢は各社アプリの「新しいお知らせ」と同じ) -->
   <section class="step" aria-labelledby="h-compose">
     <h2 id="h-compose"><span class="num">2</span>お知らせの内容(1回だけ書く)</h2>
-    <p class="hint">新規・即時公開だけを行います。編集・削除・予約は各社アプリで行ってください。</p>
+    <p class="hint">新規・即時公開だけを行います。このツールで送ったお知らせの訂正・削除は「送ったお知らせ」タブで。予約と、各社アプリで個別に出したお知らせの編集・削除は各社アプリで行ってください。</p>
     <fieldset class="lockable" id="compose-fields">
       <div class="form-grid">
         <div>
@@ -513,6 +523,90 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         <button type="button" class="btn danger" id="btn-remind" disabled>リマインドの確認へ</button>
       </div>
       <div id="remind-result"></div>
+
+      <!-- 訂正・削除(0.4.0) -->
+      <div class="remind-bar">
+        <div>
+          <div class="t-title">✏️ 訂正・削除</div>
+          <div class="sub-hint" style="margin-top:2px">社ごとに選んで、訂正または削除します。各社アプリの編集・削除と同じ書き込みで、通知は飛びません(必読で通知がまだの社は訂正できません)。</div>
+        </div>
+        <div class="inline-row" style="margin-top:0">
+          <button type="button" class="btn ghost" id="btn-edit-open" disabled>訂正する</button>
+          <button type="button" class="btn ghost" id="btn-del-open" disabled>削除する</button>
+        </div>
+      </div>
+
+      <div class="fix-panel" id="edit-panel" hidden>
+        <h3 class="fix-h">お知らせを訂正する</h3>
+        <div class="warn-box">訂正しても、もう読んだ人には知らせが行かず、新着にもなりません。大事な訂正は新しいお知らせで出してください。</div>
+        <p class="sub-hint">直せるのは、タイトル・本文・カテゴリ・優先度・上部に固定・既読期限・タグだけです。必読の ON/OFF・投稿者・対象・状態は変わりません。入力欄は、訂正できる社のうち最初の社(<span id="e-source"></span>)の今の内容から始まります。</p>
+        <div id="e-diffs"></div>
+        <div class="form-grid">
+          <div>
+            <div class="form-group">
+              <label class="form-label" for="e-title">タイトル<span class="req">*</span></label>
+              <input type="text" id="e-title" class="input" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="e-body">本文<span class="req">*</span></label>
+              <textarea id="e-body" class="input"></textarea>
+            </div>
+          </div>
+          <div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-e-cat">カテゴリ</span>
+              <div class="chips" id="e-cats" role="group" aria-labelledby="lbl-e-cat"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="e-tag-input">タグ</label>
+              <div class="tag-input-wrap" id="e-tag-wrap">
+                <span id="e-tag-chips" style="display:contents"></span>
+                <input type="text" id="e-tag-input" class="tag-input-field" placeholder="タグを入力してEnter" autocomplete="off">
+              </div>
+              <div id="e-tag-error" class="field-error" hidden></div>
+              <div class="sub-hint">20文字以内・最大5個・同じタグは不可。先頭の # は外れます。</div>
+            </div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-e-prio">優先度</span>
+              <div class="prio-row" id="e-prios" role="group" aria-labelledby="lbl-e-prio"></div>
+            </div>
+            <div class="form-group">
+              <label class="toggle-row" for="e-deadline">
+                <span><span class="t-title">⏱️ 既読期限を設定</span></span>
+                <input type="checkbox" class="switch" id="e-deadline" aria-label="既読期限を設定">
+              </label>
+              <div class="dl-fields" id="e-dl-fields" hidden>
+                <input type="date" id="e-dl-date" class="input" aria-label="既読期限の日付">
+                <input type="time" id="e-dl-time" class="input" aria-label="既読期限の時刻" value="23:59">
+              </div>
+              <label class="toggle-row" for="e-pinned">
+                <span><span class="t-title">📌 上部に固定する</span></span>
+                <input type="checkbox" class="switch" id="e-pinned" aria-label="上部に固定する">
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="rd-sub">訂正する社</div>
+        <div id="e-cos"></div>
+        <div class="field-error" id="e-error" hidden></div>
+        <div class="inline-row">
+          <button type="button" class="btn ghost" id="btn-edit-cancel">やめる</button>
+          <button type="button" class="btn danger" id="btn-edit-confirm" disabled>訂正の確認へ</button>
+        </div>
+      </div>
+
+      <div class="fix-panel" id="del-panel" hidden>
+        <h3 class="fix-h">お知らせを削除する</h3>
+        <p class="sub-hint">お知らせ本体だけを消します(各社アプリの削除と同じ。既読の記録は残ります)。消すと取り消せません。</p>
+        <div class="rd-sub">削除する社</div>
+        <div id="d-cos"></div>
+        <div class="inline-row">
+          <button type="button" class="btn ghost" id="btn-del-cancel">やめる</button>
+          <button type="button" class="btn danger" id="btn-del-confirm" disabled>削除の確認へ</button>
+        </div>
+      </div>
+
+      <div id="fix-result"></div>
     </section>
   </div>
 </main>
@@ -564,6 +658,24 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   </div>
 </dialog>
 
+<dialog class="confirm" id="fix-dialog" aria-labelledby="fx-title">
+  <div class="cf-wrap">
+    <div class="cf-head">
+      <h3 id="fx-title"></h3>
+      <div class="cf-meta" id="fx-meta"></div>
+    </div>
+    <div class="cf-body">
+      <div class="cf-grid" id="fx-grid"></div>
+      <div id="fx-skips"></div>
+    </div>
+    <div class="cf-foot">
+      <div class="cf-irrev" id="fx-irrev"></div>
+      <button type="button" class="btn ghost" id="fx-cancel">キャンセル</button>
+      <button type="button" class="btn danger" id="fx-send" disabled></button>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="confirm small" id="reset-dialog" aria-labelledby="rd-title">
   <div class="cf-wrap">
     <div class="cf-head"><h3 id="rd-title">新しいお知らせを作りますか？</h3></div>
@@ -585,7 +697,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.3.0';
+  const TOOL_VERSION = '0.4.0';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -698,7 +810,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
   // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
   function lockOut(title, lines) {
-    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#fix-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
       const node = $(sel);
       if (node) node.remove();
     });
@@ -1219,6 +1331,9 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     renderActionBar(content);
     renderResults();
     renderRemindBar();
+    renderFixBar();
+    renderEditPanel();
+    renderDelPanel();
   }
 
   /* ===== 確認画面 ===== */
@@ -1716,7 +1831,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#rd-cancel').addEventListener('click', () => $('#reset-dialog').close());
     $('#rd-ok').addEventListener('click', resetForNew);
     window.addEventListener('beforeunload', e => {
-      if (writing || remindWriting) { e.preventDefault(); e.returnValue = ''; }
+      if (writing || remindWriting || fixWriting) { e.preventDefault(); e.returnValue = ''; }
     });
   }
 
@@ -1853,12 +1968,14 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#sent-list-section').hidden = true;
     $('#sent-detail').hidden = false;
     $('#remind-result').textContent = '';
+    $('#fix-result').textContent = '';
     window.scrollTo({ top: $('#sent-detail').offsetTop - 60, behavior: 'smooth' });
     await loadDetail();
   }
 
   function closeSentDetail() {
-    if (remindWriting) return;
+    if (remindWriting || fixWriting) return;
+    closeFixPanels();
     sent.current = null;
     $('#sent-detail').hidden = true;
     $('#sent-list-section').hidden = false;
@@ -1866,10 +1983,12 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
   async function loadDetail() {
     const id = sent.current;
-    if (!id || remindWriting) return;
+    if (!id || remindWriting || fixWriting) return;
     sent.detail = {};
     sent.pick = {};
     sent.remindDone = false;
+    fix.done = false;
+    closeFixPanels(); // 訂正・削除の入力は、読み直した内容で開き直す
     $('#btn-detail-reload').disabled = true;
     $('#sd-status').textContent = '読み込み中…';
     renderDetail();
@@ -1944,7 +2063,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
           el('details', { class: 'rd-detail' },
             el('summary', { text: `読んだ人(${d.readCount}名)` }),
             d.read.length ? personList(d.read, mustRead) : el('div', { class: 'sub-hint', text: 'まだいません' })));
-        const can = d.unread.length > 0 && co.phase === 'ready' && !sent.remindDone && !remindWriting;
+        const can = d.unread.length > 0 && co.phase === 'ready' && !sent.remindDone && !remindWriting && !fixWriting;
         body.append(el('label', { class: 'rd-pick' },
           el('input', { type: 'checkbox', dataset: { remindPick: key }, checked: can && !!sent.pick[key], disabled: !can }),
           el('span', { text: d.unread.length ? 'この社の未読の人にリマインドを送る' : 'リマインド: 未読の人がいないので選べません' })));
@@ -1956,6 +2075,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         body));
     }
     renderRemindBar();
+    renderFixBar();
   }
 
   function remindTargets() {
@@ -1983,11 +2103,11 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     }
     const n = remindTargets().length;
     btn.textContent = n ? `リマインドの確認へ(${n}社)` : 'リマインドの確認へ';
-    btn.disabled = remindWriting || n === 0;
+    btn.disabled = remindWriting || fixWriting || n === 0;
   }
 
   function openRemindConfirm() {
-    if (remindWriting || sent.remindDone) return;
+    if (remindWriting || fixWriting || sent.remindDone) return;
     const id = sent.current;
     const targets = remindTargets();
     if (!id || !targets.length) return;
@@ -2111,6 +2231,548 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       el('div', { class: 'sub-hint', text: '「通知」は届けた端末の数です(未読でも、通知を許可していない人・端末を登録していない人には届きません)。' }));
   }
 
+  /* ===== 訂正・削除(0.4.0) =====
+     訂正: 各社アプリの編集(saveAnn() → submitAnnPayload() の update)のうち、直してよい7項目と updatedAt だけを update する。
+       必読・投稿者・対象・状態は書かない。onAnnouncementNotify は更新でも動き、「公開済み × 必読 × notifiedAt が無い」と
+       全員に通知を送るため、その社は訂正を止める(トランザクションの中でも確かめ直す)。
+     削除: 各社アプリの confirmDeleteAnn() と同じく本体だけを delete する(reads は残る)。
+     注意: 読んだだけで書かずに終わるトランザクションも、確認用の書き込みが既存のドキュメントに届き onAnnouncementNotify が動く。
+       止めるときは必ず例外で抜け、何も確定させない */
+  const EDIT_KEYS = ['title', 'body', 'category', 'priority', 'pinned', 'readDeadline', 'tags'];
+  const EDIT_LABELS = { title: 'タイトル', body: '本文', category: 'カテゴリ', priority: '優先度', pinned: '上部に固定', readDeadline: '既読期限', tags: 'タグ' };
+  const fix = {
+    mode: null,      // 'edit' | 'delete' | null(開いているパネル)
+    category: 'work', priority: 'normal', tags: [],
+    pickEdit: {},    // key → true(訂正する社)
+    pickDel: {},     // key → true(削除する社)
+    done: false,     // 書き込んだあとは「読み直す」まで押せなくする
+  };
+  let fixSession = null;
+  let fixWriting = false;
+
+  function anyWriting() {
+    return writing || remindWriting || fixWriting;
+  }
+
+  function isBroadcastId(id) {
+    return typeof id === 'string' && /^bc-\d{8}-\d{4}-[a-z0-9]+$/.test(id);
+  }
+
+  // 書けば onAnnouncementNotify が全員に通知を送る状態か(公開済み × 必読 × notifiedAt が無い)
+  function wouldNotify(ann) {
+    return ann.status === 'published' && ann.mustRead === true && !ann.notifiedAt;
+  }
+
+  function fmtVal(key, v) {
+    if (key === 'category') { const c = CATEGORIES.find(x => x.id === v); return c ? c.label : String(v); }
+    if (key === 'priority') { const p = PRIORITIES.find(x => x.id === v); return p ? p.label : String(v); }
+    if (key === 'pinned') return v ? 'する' : 'しない';
+    if (key === 'readDeadline') return v ? String(v) : 'なし';
+    if (key === 'tags') return Array.isArray(v) && v.length ? v.map(t => '#' + t).join(' ') : 'なし';
+    return v == null ? '' : String(v);
+  }
+
+  function sameVal(key, a, b) {
+    if (key === 'tags') return JSON.stringify(Array.isArray(a) ? a : []) === JSON.stringify(Array.isArray(b) ? b : []);
+    if (key === 'readDeadline') return (a || null) === (b || null);
+    if (key === 'pinned') return !!a === !!b;
+    return a === b;
+  }
+
+  function sameTs(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b || typeof a.isEqual !== 'function') return false;
+    return a.isEqual(b);
+  }
+
+  function okCos() {
+    return cos.filter(co => { const d = sent.detail[co.def.key]; return d && d.status === 'ok'; });
+  }
+
+  // 訂正できない理由(できるなら '')
+  function editBlock(co) {
+    const d = sent.detail[co.def.key];
+    if (!d || d.status === 'out' || co.phase !== 'ready') return '未ログイン';
+    if (d.status === 'missing') return 'この社にはありません';
+    if (d.status === 'error') return '読めませんでした';
+    if (wouldNotify(d.ann)) return '必読の通知がまだ送られていません(notifiedAt が無い)。訂正するとその時点で全員に通知が飛ぶため止めています。各社アプリで状況を確かめてください';
+    return '';
+  }
+
+  function delBlock(co) {
+    const d = sent.detail[co.def.key];
+    if (!d || d.status === 'out' || co.phase !== 'ready') return '未ログイン';
+    if (d.status === 'missing') return 'この社にはありません';
+    if (d.status === 'error') return '読めませんでした';
+    return '';
+  }
+
+  function renderFixBar() {
+    if (!booted || !sent.current) return;
+    const loaded = okCos().length > 0;
+    const busy = anyWriting();
+    for (const [sel, mode] of [['#btn-edit-open', 'edit'], ['#btn-del-open', 'delete']]) {
+      const b = $(sel);
+      b.disabled = busy || fix.done || !loaded || fix.mode === mode;
+    }
+    if (fix.done) $('#btn-edit-open').title = $('#btn-del-open').title = '書き込んだあとは「読み直す」を押してください';
+    else $('#btn-edit-open').title = $('#btn-del-open').title = '';
+  }
+
+  function closeFixPanels() {
+    fix.mode = null;
+    $('#edit-panel').hidden = true;
+    $('#del-panel').hidden = true;
+    renderFixBar();
+  }
+
+  /* --- 訂正の入力欄 --- */
+  function renderEditCats() {
+    const box = $('#e-cats');
+    box.textContent = '';
+    CATEGORIES.forEach(c => box.append(el('button', {
+      type: 'button', class: 'chip', text: c.label,
+      dataset: { ecat: c.id }, 'aria-pressed': String(fix.category === c.id),
+    })));
+  }
+
+  function renderEditPrios() {
+    const box = $('#e-prios');
+    box.textContent = '';
+    PRIORITIES.forEach(x => box.append(el('button', {
+      type: 'button', class: 'prio-btn', 'aria-label': `優先度 ${x.label}`,
+      dataset: { eprio: x.id }, 'aria-pressed': String(fix.priority === x.id),
+    }, el('span', { text: x.icon, 'aria-hidden': 'true' }), el('span', { text: x.label }))));
+  }
+
+  function renderEditTags() {
+    const wrap = $('#e-tag-chips');
+    wrap.textContent = '';
+    fix.tags.forEach((t, i) => {
+      wrap.append(el('span', { class: 'tag-chip-edit' },
+        t,
+        el('button', { type: 'button', class: 'tag-chip-remove', 'aria-label': `タグ「${t}」を外す`, dataset: { etagIndex: String(i) }, text: '✕' })));
+    });
+  }
+
+  // 各社アプリ addEdTagFromInput() と同じ正規化(「お知らせを送る」の addTagFromInput() と同じ決まり)
+  function addEditTag() {
+    const inp = $('#e-tag-input');
+    const val = inp.value.trim().replace(/^#+/, '');
+    if (!val) return inp.value.trim() ? 'タグが空です(# だけでは追加できません)' : '';
+    if (val.length > 20) return 'タグは20文字以内です';
+    if (fix.tags.includes(val)) { inp.value = ''; return '同じタグは追加できません'; }
+    if (fix.tags.length >= 5) return 'タグは最大5個までです';
+    fix.tags.push(val);
+    inp.value = '';
+    return '';
+  }
+
+  function showEditTagError(msg) {
+    $('#e-tag-error').textContent = msg;
+    $('#e-tag-error').hidden = !msg;
+  }
+
+  // 各社アプリ saveAnn() と同じ: 期限ONで日付があるときだけ 'YYYY-MM-DD HH:MM'(時刻の既定 23:59)
+  function editDeadline() {
+    if (!$('#e-deadline').checked) return null;
+    const date = $('#e-dl-date').value;
+    const time = $('#e-dl-time').value || '23:59';
+    return date ? `${date} ${time}` : null;
+  }
+
+  function readEdit() {
+    return {
+      title: $('#e-title').value.trim(),
+      body: $('#e-body').value.trim(),
+      category: fix.category,
+      priority: fix.priority,
+      pinned: $('#e-pinned').checked,
+      readDeadline: editDeadline(),
+      tags: fix.tags.slice(),
+    };
+  }
+
+  function openEditPanel() {
+    if (anyWriting() || fix.done) return;
+    // 入力欄は、訂正できる社のうち最初の社の今の内容から始める(無ければ読めた最初の社)
+    const src = okCos().find(co => !editBlock(co)) || okCos()[0];
+    if (!src) return;
+    const a = sent.detail[src.def.key].ann;
+    fix.mode = 'edit';
+    $('#del-panel').hidden = true;
+    $('#edit-panel').hidden = false;
+    $('#e-source').textContent = src.def.label;
+    $('#e-title').value = typeof a.title === 'string' ? a.title : '';
+    $('#e-body').value = typeof a.body === 'string' ? a.body : '';
+    fix.category = CATEGORIES.some(c => c.id === a.category) ? a.category : 'work';
+    fix.priority = PRIORITIES.some(p => p.id === a.priority) ? a.priority : 'normal';
+    fix.tags = Array.isArray(a.tags) ? a.tags.filter(t => typeof t === 'string').slice(0, 5) : [];
+    $('#e-pinned').checked = !!a.pinned;
+    const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$/.exec(a.readDeadline || '');
+    $('#e-deadline').checked = !!m;
+    if (m) { $('#e-dl-date').value = m[1]; $('#e-dl-time').value = m[2]; }
+    else {
+      // 各社アプリと同じ: 日付の初期値は3日後、時刻は 23:59
+      const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+      const p = n => String(n).padStart(2, '0');
+      $('#e-dl-date').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      $('#e-dl-time').value = '23:59';
+    }
+    $('#e-dl-fields').hidden = !m;
+    $('#e-tag-input').value = '';
+    showEditTagError('');
+    fix.pickEdit = {};
+    for (const co of cos) if (!editBlock(co)) fix.pickEdit[co.def.key] = true; // 訂正できる社は最初から選んでおく
+    renderEditCats();
+    renderEditPrios();
+    renderEditTags();
+    renderEditDiffs();
+    renderEditPanel();
+    renderFixBar();
+    $('#edit-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // 社ごとに今の内容が違う項目を並べる
+  function renderEditDiffs() {
+    const box = $('#e-diffs');
+    box.textContent = '';
+    const list = okCos();
+    if (list.length < 2) return;
+    const keys = EDIT_KEYS.filter(k => list.some(co => !sameVal(k, sent.detail[co.def.key].ann[k], sent.detail[list[0].def.key].ann[k])));
+    if (!keys.length) {
+      box.append(el('div', { class: 'sub-hint', text: `読み込んだ ${list.map(c => c.def.label).join('・')} の今の内容は、直せる項目がすべて同じです。` }));
+      return;
+    }
+    box.append(el('div', { class: 'warn-box', text: `社によって今の内容が違う項目があります(${keys.map(k => EDIT_LABELS[k]).join('・')})。訂正すると、選んだ社はすべて下の入力欄の内容になります。` }),
+      el('div', { class: 'rs-scroll' }, el('table', { class: 'diff-table' },
+        el('thead', {}, el('tr', {}, el('th', { text: '項目' }), list.map(co => el('th', { text: co.def.label })))),
+        el('tbody', {}, keys.map(k => el('tr', {},
+          el('th', { text: EDIT_LABELS[k] }),
+          list.map(co => el('td', { text: fmtVal(k, sent.detail[co.def.key].ann[k]) }))))))));
+  }
+
+  function editTargets() {
+    return cos.filter(co => fix.pickEdit[co.def.key] && !editBlock(co));
+  }
+
+  function editProblems(v) {
+    const errs = [];
+    if (!v.title) errs.push('タイトルを入力してください');
+    if (!v.body) errs.push('本文を入力してください');
+    if ($('#e-deadline').checked && !$('#e-dl-date').value) errs.push('既読期限の日付を入れてください(期限を付けないなら「既読期限を設定」を切る)');
+    return errs;
+  }
+
+  function renderEditPanel() {
+    if (fix.mode !== 'edit') return;
+    const box = $('#e-cos');
+    box.textContent = '';
+    for (const co of cos) {
+      const why = editBlock(co);
+      box.append(el('label', { class: 'pick-row' },
+        el('input', { type: 'checkbox', dataset: { epick: co.def.key }, checked: !why && !!fix.pickEdit[co.def.key], disabled: !!why || anyWriting() }),
+        el('span', {}, el('b', { text: co.def.label }), why ? el('span', { class: 'why', text: why }) : null)));
+    }
+    const errs = editProblems(readEdit());
+    $('#e-error').textContent = errs.join(' / ');
+    $('#e-error').hidden = !errs.length;
+    const n = editTargets().length;
+    const btn = $('#btn-edit-confirm');
+    btn.textContent = n ? `訂正の確認へ(${n}社)` : '訂正の確認へ';
+    btn.disabled = anyWriting() || fix.done || n === 0 || errs.length > 0;
+  }
+
+  function buildEditPayload(v) {
+    return {
+      title: v.title,
+      body: v.body,
+      category: v.category,
+      priority: v.priority,
+      pinned: v.pinned,
+      readDeadline: v.readDeadline,
+      tags: v.tags.slice(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+  }
+
+  // 訂正で書き込む直前の形の確認(項目は EDIT_KEYS と updatedAt だけ。値の決まりは checkPayload() と同じ)
+  function checkEditPayload(p) {
+    const keys = Object.keys(p).sort().join(',');
+    if (keys !== EDIT_KEYS.concat('updatedAt').sort().join(',')) throw new Error('書き込む項目が想定と違います');
+    const isStr = v => typeof v === 'string';
+    const bad = [];
+    if (!isStr(p.title) || !p.title || p.title !== p.title.trim()) bad.push('title');
+    if (!isStr(p.body) || !p.body || p.body !== p.body.trim()) bad.push('body');
+    if (!CATEGORIES.some(c => c.id === p.category)) bad.push('category');
+    if (!PRIORITIES.some(x => x.id === p.priority)) bad.push('priority');
+    if (typeof p.pinned !== 'boolean') bad.push('pinned');
+    if (!(p.readDeadline === null || (isStr(p.readDeadline) && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(p.readDeadline)))) bad.push('readDeadline');
+    if (!Array.isArray(p.tags) || p.tags.length > 5 || new Set(p.tags).size !== p.tags.length
+        || !p.tags.every(t => isStr(t) && t.length > 0 && t.length <= 20)) bad.push('tags');
+    if (!(p.updatedAt instanceof firebase.firestore.FieldValue)) bad.push('updatedAt');
+    if (bad.length) throw new Error('書き込む内容の形が正しくありません: ' + bad.join(', '));
+  }
+
+  function openEditConfirm() {
+    if (anyWriting() || fix.done || fix.mode !== 'edit') return;
+    const id = sent.current;
+    const v = readEdit();
+    if (!isBroadcastId(id) || editProblems(v).length) return;
+    const targets = editTargets();
+    if (!targets.length) return;
+    const items = targets.map(co => {
+      const before = sent.detail[co.def.key].ann;
+      const changed = EDIT_KEYS.filter(k => !sameVal(k, before[k], v[k]));
+      return { co, before, changed };
+    });
+    fixSession = { mode: 'edit', id, value: v, items };
+    $('#fx-title').textContent = 'お知らせの訂正の確認';
+    $('#fx-meta').textContent = `一括送信ID: ${id} ・ 現在時刻: ${fmtNow()} ・ 訂正する社: ${items.filter(x => x.changed.length).map(x => x.co.def.label).join('・') || 'なし'}`;
+    const grid = $('#fx-grid');
+    grid.textContent = '';
+    for (const it of items) {
+      const body = el('div', { class: 'co-body' });
+      if (!it.changed.length) {
+        body.append(el('div', { class: 'co-status muted', text: '変更はありません(この社には書き込みません)' }));
+      } else {
+        body.append(el('dl', { class: 'cf-dl' }, it.changed.flatMap(k => [
+          el('dt', { text: EDIT_LABELS[k] }),
+          el('dd', {},
+            el('div', { class: 'df-old', text: fmtVal(k, it.before[k]) || '(空)' }),
+            el('div', { class: 'df-new', text: '→ ' + fmtVal(k, v[k]) })),
+        ])));
+      }
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${it.co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: it.co.def.label }),
+          el('span', { class: 'co-pid', text: it.co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${it.co.login.code} でログイン中` })),
+        body));
+    }
+    const skips = $('#fx-skips');
+    skips.textContent = '';
+    skips.append(el('div', { class: 'cf-skip', text: '訂正しても、もう読んだ人には知らせが行かず、新着にもなりません。プッシュ通知も飛びません。読み込んだあとに各社で内容が変わっていたら、その社は書き込まずに止めます。' }));
+    const out = cos.filter(co => !targets.includes(co));
+    if (out.length) skips.append(el('div', { class: 'cf-skip', text: '訂正しない社: ' + out.map(co => `${co.def.label}(${editBlock(co) || '選んでいない'})`).join(' / ') }));
+    const n = items.filter(x => x.changed.length).length;
+    $('#fx-irrev').textContent = '訂正すると元の内容には戻せません(元に戻すには、もう一度訂正する)。';
+    $('#fx-send').textContent = n ? `訂正する(${n}社)` : '変更がありません';
+    $('#fx-send').disabled = n === 0;
+    $('#fix-dialog').showModal();
+    $('#fx-cancel').focus();
+  }
+
+  async function updateOne(co, id, before, payload) {
+    if (!isBroadcastId(id)) throw new Error('一括送信のお知らせではありません');
+    checkEditPayload(payload);
+    const ref = co.db.collection('announcements').doc(id);
+    await co.db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      // 止めるときは例外で抜ける(何も確定させない)
+      if (!snap.exists) throw new Error('この社にはもうありません(削除された)');
+      const cur = snap.data();
+      if (wouldNotify(cur)) throw new Error('必読の通知がまだ送られていないため止めました(訂正すると全員に通知が飛ぶ)');
+      if (!sameTs(cur.updatedAt, before.updatedAt)) throw new Error('読み込んだあとに、この社のお知らせが変わりました。「読み直す」を押してからやり直してください');
+      tx.update(ref, payload);
+    });
+  }
+
+  /* --- 削除 --- */
+  function openDelPanel() {
+    if (anyWriting() || fix.done) return;
+    fix.mode = 'delete';
+    fix.pickDel = {}; // 消す社は毎回選び直す(最初はどれも選ばない)
+    $('#edit-panel').hidden = true;
+    $('#del-panel').hidden = false;
+    renderDelPanel();
+    renderFixBar();
+    $('#del-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function delTargets() {
+    return cos.filter(co => fix.pickDel[co.def.key] && !delBlock(co));
+  }
+
+  function renderDelPanel() {
+    if (fix.mode !== 'delete') return;
+    const box = $('#d-cos');
+    box.textContent = '';
+    for (const co of cos) {
+      const why = delBlock(co);
+      box.append(el('label', { class: 'pick-row' },
+        el('input', { type: 'checkbox', dataset: { dpick: co.def.key }, checked: !why && !!fix.pickDel[co.def.key], disabled: !!why || anyWriting() }),
+        el('span', {}, el('b', { text: co.def.label }), why ? el('span', { class: 'why', text: why }) : null)));
+    }
+    const n = delTargets().length;
+    const btn = $('#btn-del-confirm');
+    btn.textContent = n ? `削除の確認へ(${n}社)` : '削除の確認へ';
+    btn.disabled = anyWriting() || fix.done || n === 0;
+  }
+
+  function openDelConfirm() {
+    if (anyWriting() || fix.done || fix.mode !== 'delete') return;
+    const id = sent.current;
+    const targets = delTargets();
+    if (!isBroadcastId(id) || !targets.length) return;
+    fixSession = { mode: 'delete', id, items: targets.map(co => ({ co, before: sent.detail[co.def.key].ann, changed: ['(削除)'] })) };
+    $('#fx-title').textContent = 'お知らせの削除の確認';
+    $('#fx-meta').textContent = `一括送信ID: ${id} ・ 現在時刻: ${fmtNow()} ・ 削除する社: ${targets.map(c => c.def.label).join('・')}(${targets.length}社)`;
+    const grid = $('#fx-grid');
+    grid.textContent = '';
+    for (const co of targets) {
+      const d = sent.detail[co.def.key];
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${co.login.code} でログイン中` })),
+        el('div', { class: 'co-body' },
+          el('dl', { class: 'cf-dl' },
+            el('dt', { text: 'タイトル' }), el('dd', { text: String(d.ann.title || '') }),
+            el('dt', { text: '必読' }), el('dd', { text: d.ann.mustRead ? 'あり' : 'なし' }),
+            el('dt', { text: '既読' }), el('dd', { text: `${d.readCount}名 / ${d.total}名(既読の記録は消さずに残ります)` })))));
+    }
+    const skips = $('#fx-skips');
+    skips.textContent = '';
+    skips.append(el('div', { class: 'cf-skip', text: '削除すると、その社の乗務員のアプリからこのお知らせが消えます。通知は飛びません。' }));
+    $('#fx-irrev').textContent = '削除すると取り消せません。';
+    $('#fx-send').textContent = `削除する(${targets.length}社)`;
+    $('#fx-send').disabled = false;
+    $('#fix-dialog').showModal();
+    $('#fx-cancel').focus();
+  }
+
+  async function deleteOne(co, id) {
+    if (!isBroadcastId(id)) throw new Error('一括送信のお知らせではありません');
+    const ref = co.db.collection('announcements').doc(id);
+    const pre = await ref.get({ source: 'server' });
+    if (!pre.exists) return { already: true };
+    await ref.delete();
+    return { already: false };
+  }
+
+  function closeFixConfirm() {
+    fixSession = null;
+    const d = $('#fix-dialog');
+    if (d.open) d.close();
+  }
+
+  async function onFixSend() {
+    const session = fixSession;
+    if (!session || anyWriting()) return;
+    $('#fx-send').disabled = true;
+    closeFixConfirm();
+    fixWriting = true;
+    fix.done = true;
+    closeFixPanels();
+    renderDetail();
+    const results = session.items.map(it => ({ co: it.co, state: it.changed.length ? 'waiting' : 'skipped', note: '変更なし(書き込んでいません)' }));
+    renderFixResult(session, results);
+    const payload = session.mode === 'edit' ? buildEditPayload(session.value) : null;
+    // 社ごとに順番に。1社が失敗しても他社は止めない
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.state === 'skipped') continue;
+      r.state = 'sending';
+      renderFixResult(session, results);
+      try {
+        if (r.co.phase !== 'ready') throw new Error('未ログインになりました');
+        if (session.mode === 'edit') {
+          await withTimeout(updateOne(r.co, session.id, session.items[i].before, payload), 30000);
+          r.note = '訂正しました(' + session.items[i].changed.map(k => EDIT_LABELS[k]).join('・') + ')';
+        } else {
+          const res = await withTimeout(deleteOne(r.co, session.id), 30000);
+          r.note = res.already ? 'すでにありませんでした(何もしていません)' : '削除しました';
+        }
+        r.state = 'ok';
+      } catch (e) {
+        console.error(`[${r.co.def.label}] ${session.mode === 'edit' ? '訂正' : '削除'}に失敗:`, e);
+        r.state = 'failed';
+        r.note = errText(e);
+      }
+      renderFixResult(session, results);
+    }
+    fixWriting = false;
+    renderDetail();
+  }
+
+  function renderFixResult(session, results) {
+    const box = $('#fix-result');
+    box.textContent = '';
+    box.append(el('div', { class: 'rd-sub', text: `${session.mode === 'edit' ? '訂正' : '削除'}の結果(${fmtNow()})` }),
+      el('ul', { class: 'rd-list' }, results.map(r => {
+        const text = r.state === 'waiting' ? '待機中' : r.state === 'sending' ? '書き込み中…' : r.state === 'failed' ? '失敗: ' + r.note : r.note;
+        return el('li', {},
+          el('span', { class: 'rs-co', style: `--co:${r.co.def.color}`, text: r.co.def.label }),
+          el('span', { class: r.state === 'failed' ? 'st-failed' : r.state === 'ok' ? 'st-success' : r.state === 'skipped' ? 'st-skipped' : 'st-sending', text }));
+      })),
+      el('div', { class: 'sub-hint', text: '「読み直す」を押すと、各社の今の内容が出ます。' }));
+  }
+
+  function wireFix() {
+    $('#btn-edit-open').addEventListener('click', openEditPanel);
+    $('#btn-del-open').addEventListener('click', openDelPanel);
+    $('#btn-edit-cancel').addEventListener('click', closeFixPanels);
+    $('#btn-del-cancel').addEventListener('click', closeFixPanels);
+    ['#e-title', '#e-body', '#e-dl-date', '#e-dl-time'].forEach(sel => $(sel).addEventListener('input', renderEditPanel));
+    $('#e-pinned').addEventListener('change', renderEditPanel);
+    $('#e-deadline').addEventListener('change', () => {
+      $('#e-dl-fields').hidden = !$('#e-deadline').checked;
+      renderEditPanel();
+    });
+    $('#e-cats').addEventListener('click', e => {
+      const b = e.target.closest('[data-ecat]');
+      if (!b) return;
+      fix.category = b.dataset.ecat;
+      renderEditCats();
+    });
+    $('#e-prios').addEventListener('click', e => {
+      const b = e.target.closest('[data-eprio]');
+      if (!b) return;
+      fix.priority = b.dataset.eprio;
+      renderEditPrios();
+    });
+    $('#e-tag-wrap').addEventListener('click', e => {
+      const rm = e.target.closest('[data-etag-index]');
+      if (rm) { fix.tags.splice(Number(rm.dataset.etagIndex), 1); renderEditTags(); return; }
+      $('#e-tag-input').focus();
+    });
+    $('#e-tag-input').addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return; // 日本語入力の変換確定の Enter では追加しない
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        showEditTagError(addEditTag());
+        renderEditTags();
+      } else if (e.key === 'Backspace' && !e.target.value && fix.tags.length > 0) {
+        fix.tags.pop();
+        renderEditTags();
+      }
+    });
+    $('#e-tag-input').addEventListener('input', () => showEditTagError(''));
+    $('#e-cos').addEventListener('change', e => {
+      const b = e.target.closest('[data-epick]');
+      if (!b) return;
+      fix.pickEdit[b.dataset.epick] = b.checked;
+      renderEditPanel();
+    });
+    $('#d-cos').addEventListener('change', e => {
+      const b = e.target.closest('[data-dpick]');
+      if (!b) return;
+      fix.pickDel[b.dataset.dpick] = b.checked;
+      renderDelPanel();
+    });
+    $('#btn-edit-confirm').addEventListener('click', () => {
+      // 入力中のタグも含める(各社アプリ saveAnn() と同じ)
+      if ($('#e-tag-input').value.trim()) { showEditTagError(addEditTag()); renderEditTags(); }
+      openEditConfirm();
+    });
+    $('#btn-del-confirm').addEventListener('click', openDelConfirm);
+    $('#fx-cancel').addEventListener('click', closeFixConfirm);
+    $('#fix-dialog').addEventListener('cancel', e => { e.preventDefault(); closeFixConfirm(); }); // Esc もキャンセル扱い
+    $('#fx-send').addEventListener('click', onFixSend);
+  }
+
   function wireSent() {
     $('#tab-send').addEventListener('click', () => setTab('send'));
     $('#tab-sent').addEventListener('click', () => setTab('sent'));
@@ -2146,6 +2808,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   });
   wireForm();
   wireSent();
+  wireFix();
   $('#app').hidden = false;
   $('#actionbar').hidden = false;
   booted = true;
