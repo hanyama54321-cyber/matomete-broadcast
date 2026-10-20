@@ -4,20 +4,29 @@
 //   node emulator/inspect.js compare <key> <idA> <idB>   同じ社の2件を項目名・型で機械的に比べる(違えば終了コード1)
 //   node emulator/inspect.js fnlog                       各社の onAnnouncementNotify の実行回数と、送信まで進んだ回数、sendUnreadReminder が送信まで進んだ回数(emulator.log から)
 //   node emulator/inspect.js tokens                      各社の架空の通知トークンの件数
+//   node emulator/inspect.js storage                     各社の Storage エミュレーターの manuals/ の下のファイル
+// list・get・compare は既定で announcements を見る。--col manuals を付けると手順書(manuals)を見る
 // key は hiline / alogi / meiho
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
-const { COMPANIES, workDir } = require('./config');
+const { COMPANIES, workDir, argValue } = require('./config');
 const { company, call, docsBase, typeOf, plain } = require('./rest');
 
+// list・get・compare で見るコレクション(既定はお知らせ。--col manuals で手順書)
+const COL = argValue('--col', 'announcements');
+if (!['announcements', 'manuals'].includes(COL)) {
+  console.error('--col は announcements か manuals です');
+  process.exit(1);
+}
+
 async function getDoc(c, id) {
-  return call('GET', `${docsBase(c)}/announcements/${encodeURIComponent(id)}`);
+  return call('GET', `${docsBase(c)}/${COL}/${encodeURIComponent(id)}`);
 }
 
 async function listDocs(c) {
-  const res = await call('GET', `${docsBase(c)}/announcements?pageSize=300`);
+  const res = await call('GET', `${docsBase(c)}/${COL}?pageSize=300`);
   return (res && res.documents) || [];
 }
 
@@ -29,12 +38,13 @@ function short(s, n = 28) {
 async function cmdList() {
   for (const c of COMPANIES) {
     const docs = await listDocs(c);
-    console.log(`\n■ ${c.label}(${c.projectId}) announcements ${docs.length} 件`);
+    console.log(`\n■ ${c.label}(${c.projectId}) ${COL} ${docs.length} 件`);
     for (const d of docs) {
       const f = d.fields || {};
       const v = k => (f[k] ? plain(f[k]) : undefined);
       const id = d.name.split('/').pop();
-      console.log(`  ${id}  author=${v('authorUid')}/${v('authorName')}  mustRead=${v('mustRead')}  notifiedAt=${f.notifiedAt ? 'あり' : 'なし'}  項目数=${Object.keys(f).length}  「${short(v('title'))}」`);
+      const who = COL === 'manuals' ? `${v('uploaderUid')}/${v('uploaderName')}` : `${v('authorUid')}/${v('authorName')}`;
+      console.log(`  ${id}  author=${who}  mustRead=${v('mustRead')}  notifiedAt=${f.notifiedAt ? 'あり' : 'なし'}  項目数=${Object.keys(f).length}  「${short(v('title'))}」`);
     }
   }
 }
@@ -91,7 +101,19 @@ function cmdFnlog() {
       if (m) current = m[1];
       else if (l.includes('送信対象トークンなし(0件)') || l.includes('送信結果:')) reached[current] = (reached[current] || 0) + 1;
     }
-    console.log(`${c.label}: onAnnouncementNotify の実行 ${began} 回・送信まで進んだ回数 ${reached.onAnnouncementNotify || 0} 回 / エラーらしき行 ${errors} / sendUnreadReminder の送信まで進んだ回数 ${reached.sendUnreadReminder || 0} 回`);
+    const manualBegan = lines.filter(l => /Beginning execution of .*onManualCreated/.test(l)).length;
+    console.log(`${c.label}: onAnnouncementNotify の実行 ${began} 回・送信まで進んだ回数 ${reached.onAnnouncementNotify || 0} 回 / エラーらしき行 ${errors} / sendUnreadReminder の送信まで進んだ回数 ${reached.sendUnreadReminder || 0} 回 / onManualCreated の実行 ${manualBegan} 回・送信まで進んだ回数 ${reached.onManualCreated || 0} 回`);
+  }
+}
+
+// Storage エミュレーターの中のファイル(manuals/ の下)。Bearer owner でルールを通さずに一覧する
+async function cmdStorage() {
+  for (const c of COMPANIES) {
+    const bucket = `${c.projectId}.firebasestorage.app`;
+    const res = await call('GET', `http://127.0.0.1:${c.ports.storage}/v0/b/${bucket}/o?prefix=${encodeURIComponent('manuals/')}`);
+    const items = (res && res.items) || [];
+    console.log(`${c.label}: ${items.length} 件`);
+    for (const it of items) console.log(`  ${it.name}`);
   }
 }
 
@@ -107,14 +129,18 @@ async function cmdTokens() {
 }
 
 (async () => {
-  const [cmd, ...args] = process.argv.slice(2).filter(a => !a.startsWith('--'));
+  // --work / --col は値を取るので、値ごと外してから並びを読む
+  const argv = process.argv.slice(2);
+  const rest = argv.filter((a, i) => !a.startsWith('--') && !['--work', '--col'].includes(argv[i - 1]));
+  const [cmd, ...args] = rest;
   if (cmd === 'list') await cmdList();
   else if (cmd === 'get') await cmdGet(args[0], args[1]);
   else if (cmd === 'compare') await cmdCompare(args[0], args[1], args[2]);
   else if (cmd === 'fnlog') cmdFnlog();
   else if (cmd === 'tokens') await cmdTokens();
+  else if (cmd === 'storage') await cmdStorage();
   else {
-    console.log('使い方: node emulator/inspect.js list | get <key> <id> | compare <key> <idA> <idB> | fnlog | tokens');
+    console.log('使い方: node emulator/inspect.js list | get <key> <id> | compare <key> <idA> <idB> | fnlog | tokens | storage   (list・get・compare は --col manuals で手順書)');
     process.exitCode = 1;
   }
 })().catch(e => { console.error(e.message); process.exit(1); });

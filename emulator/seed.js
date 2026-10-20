@@ -2,8 +2,8 @@
 //   (引数なし)       3社のエミュレーターを空にして、検証用のアカウント(config.js の TEST_USERS)と users を作り直す
 //   --tokens         乗務員 10001〜10003 に架空の通知トークンを入れる(確認画面の「概算人数」を見るため)
 //   --clear-tokens   架空の通知トークンを消す
-// 注意: トークンが入ったまま必読のお知らせを作ると、functions(onAnnouncementNotify)が本物の FCM へ
-//       送ろうとする。概算人数を確かめたら、必読の送信を試す前に必ず --clear-tokens を実行すること。
+// 注意: トークンが入ったまま必読のお知らせ・手順書を作ったりリマインドを送ったりすると、functions が本物の FCM へ
+//       送ろうとする。概算人数を確かめたら、送信を試す前に必ず --clear-tokens を実行すること。
 'use strict';
 
 const { COMPANIES, TEST_USERS, AUTH_EMAIL_DOMAIN, AUTH_PW_SUFFIX } = require('./config');

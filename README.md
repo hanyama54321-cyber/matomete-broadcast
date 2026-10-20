@@ -3,7 +3,7 @@
 3社(HI-LINE・A-LOGI・名豊興運)の「周知・おしらせ」に、同じお知らせを1回の操作で投稿するツールです。
 中身は「各社アプリの『投稿する』ボタンと同じ書き込みを、3社分まとめて行う」だけで、3社の Firebase 同士はつなぎません。
 
-- 版: 0.3.0(2026-10-20。0.1.0 はマイPCだけで使う版、0.2.0 から GitHub Pages でも公開、0.2.1 で管理者コードを画面に出さないようにし、`{会社名}` の置き換えを「CB名古屋」を入れるボタンに替えた。0.2.2 で初期パスワードのままでもログインできるようにした。0.3.0 で「送ったお知らせ」タブ(既読状況・未読リマインド)を加えた。0.4.0(2026-10-21)で、一括送信したお知らせの訂正・削除を加えた)
+- 版: 0.5.0(2026-10-21。0.1.0 はマイPCだけで使う版、0.2.0 から GitHub Pages でも公開、0.2.1 で管理者コードを画面に出さないようにし、`{会社名}` の置き換えを「CB名古屋」を入れるボタンに替えた。0.2.2 で初期パスワードのままでもログインできるようにした。0.3.0 で「送ったお知らせ」タブ(既読状況・未読リマインド)を加えた。0.4.0(2026-10-21)で、一括送信したお知らせの訂正・削除を加えた。0.5.0(2026-10-21)で「手順書を送る」タブを加えた)
 - 使う端末: 南野さんのマイPC(`start-broadcast.bat` で開く)と、会社ネットワーク外のPC(公開URLで開く)。会社PCでは使わない
 - 公開URL: https://hanyama54321-cyber.github.io/matomete-broadcast/
 - 必要なもの: インターネット接続。マイPCで `start-broadcast.bat` を使うときは Node.js も(マイPCには入っている)
@@ -18,6 +18,7 @@
 | 一括送信したお知らせの既読状況を3社並べて見る(0.3.0) | アプリから個別に投稿したお知らせの既読状況(各社アプリで見る) |
 | 一括送信したお知らせの未読の人に、社ごとにリマインドを送る(0.3.0) | 自動で何度もリマインドする |
 | 一括送信したお知らせを、社ごとに選んで訂正・削除する(0.4.0) | アプリから個別に投稿したお知らせの編集・削除、必読の ON/OFF・投稿者の変更 |
+| 手順書(ファイル1つ)を、1〜3社へ同時に新しく登録する(0.5.0) | 手順書の訂正・削除・ファイルの差し替え |
 
 ## 開き方
 
@@ -108,6 +109,18 @@
   - 各社アプリの削除と同じく、お知らせ本体だけを消します。既読の記録(`reads`)は残ります。通知は飛びません
 - どちらも社ごとに順番に書き込み、1社が失敗しても他社は止めません。書き込んだあとはボタンが押せなくなるので、続けるときは「読み直す」を押します
 
+### 8. 手順書を送る(0.5.0 から)
+
+ログイン欄の下のタブ「手順書を送る」で使います。並び・既定値・選択肢は各社アプリの「新規マニュアル追加」と同じです。
+
+- 入力: タイトル(必須)・説明・アイコン(📦 🚨 🚚 📱 📋 🔧、既定 📋)・カテゴリ(基本手順・安全・車両管理・システム・その他、既定 基本手順)・ファイル1つ(必須・50MB未満)・必読・既読期限(必読のときだけ。日付の既定は7日後、時刻 23:59)・投稿者名(お知らせと同じ扱い。空欄なら各社の `users.name`、入力すれば3社共通)
+- **ファイル名に `'` `"` `\` `<` `>`、バッククォート、制御文字が入っていると送れません。** 各社アプリは手順書のファイルの URL を画面のボタンに埋め込んで開くため、これらがあるとアプリで開けなくなります。ファイル名を変えてから選び直してください
+- 「送る社」で社ごとに送る・送らないを選べます。ログインしていない社・投稿者名が決まらない社は選べません
+- 「確認へ」で確認画面が出ます。社ごとにタイトル・投稿者名・カテゴリ・必読・ファイル、ロック画面に出る文言(`📋 手順書の更新` / `🗂️ 新しい手順書: タイトル`、タイトルは60文字で切れる)、通知を許可している人数の概算、現在時刻が出ます。**登録すると、必読かどうかに関係なく全乗務員に通知が飛びます。送信後は取り消せません**
+- 社ごとに順番に「ファイルのアップロード(進み具合が出る)→ 手順書の登録」を行い、1社が失敗しても他社は止めません
+- **失敗した社だけ「同じIDで再送」できます。** 同じID・同じファイル名なので、ファイルは同じ場所に上書きされるだけで、手順書が二重にできることはありません(既に登録できている社には何もしない)
+- 送信後は入力欄が固定されます。次の手順書は「新しい手順書を作る」から(結果の表示が消えます)
+
 ## 書き込む内容
 
 各社アプリの `submitAnnPayload()` の「新規・即時公開」と同じ16項目だけを書きます(項目は増やさない)。
@@ -141,16 +154,34 @@
 - 書き込みはトランザクションで、中で「お知らせがある」「必読で `notifiedAt` が無い状態ではない」「読み込んだときから `updatedAt` が変わっていない」を確かめてから `update` します。どれかに当たったら例外で止め、何も確定させません(読んだだけで書かずに終わるトランザクションも、既存のドキュメントへの書き込みとして届き `onAnnouncementNotify` が動くため)
 - 削除は、サーバーから読んで、あれば `delete` します。ID が一括送信の形(`bc-` で始まる)でなければ、訂正も削除もしません
 
+手順書(0.5.0 から)は、各社アプリの新規追加(`saveManEditor()` → `uploadNewManual()`)と同じ14項目だけを書きます(項目は増やさない。`notifiedAt` は各社の `onManualCreated` が足す)。
+
+| 項目 | 値 |
+|---|---|
+| `title` / `description` | 前後の空白を除いた文字列(説明は空でもよい) |
+| `category` | `基本手順` / `安全` / `車両管理` / `システム` / `その他` |
+| `icon` | `📦` / `🚨` / `🚚` / `📱` / `📋` / `🔧` |
+| `fileUrl` | Storage の `manuals/{ID}/{ファイル名}` のダウンロードURL(`getDownloadURL()`) |
+| `fileName` / `fileType` / `fileSize` | ファイル名 / ファイルの種類(分からなければ `null`)/ バイト数 |
+| `createdAt` / `updatedAt` | サーバー時刻 |
+| `uploaderUid` / `uploaderName` | ログインしたコード / 投稿者名(空欄ならログインした人の `users.name`) |
+| `mustRead` | 真偽値 |
+| `readDeadline` | 必読のときだけ `'YYYY-MM-DD HH:MM'`、必読でなければ `null` |
+
+- 社ごとに、(1) `manuals/{ID}` がサーバーに既にあれば何もしない → (2) Storage に `put` → (3) `getDownloadURL()` → (4) `manuals/{ID}` を「無ければ作る」(お知らせと同じ `writeOnce()`)。ID はお知らせと同じ形(`bc-…`)で3社共通
+
 ## 通知について
 
 - 必読ONのときのプッシュ通知は、各社のサーバー処理 `onAnnouncementNotify` がこれまでどおり送ります。投稿のときにツールから通知は送りません
 - 必読OFFでもプッシュ通知は飛びませんが、ベル・タブの赤い点は全員に付きます
 - 未読リマインド(0.3.0 から)は、ツールが各社の `sendUnreadReminder` を呼び、各社のサーバー処理が未読の人に通知を送ります(未読の人のうち、通知を許可していて端末を登録している人にだけ届く)
 - 訂正・削除(0.4.0 から)では通知は飛びません。ただし `onAnnouncementNotify` は更新でも動き、「公開済み × 必読 × `notifiedAt` が無い」と全員に通知を送るため、その状態の社は訂正しません
+- 手順書(0.5.0 から)は、作成すると各社の `onManualCreated` が、必読かどうかに関係なく全乗務員(通知を許可している人)にプッシュ通知を送ります。ツールから直接は送りません
 
 ## 本番での確認
 
 - 0.3.0(送ったお知らせ・未読リマインド): 2026-10-21 に南野さんから「問題なし」と報告あり
+- 0.4.0(訂正・削除): 2026-10-21 に南野さんから「問題なし」と報告あり
 
 ## 本番での初回確認
 
@@ -178,6 +209,8 @@
 - 既読状況の数え方(`fetchAnnAllDrivers()` / `buildAnnReadStatus()` → ツールの `loadDetail()`・`buildReadStatus()`)。アプリの CSV の「確認済み」は乗務員以外の reads も数えるが、ツールは対象(乗務員)のうちの確認済みだけを数える
 - 未読リマインド(`sendReminder()` → callable `sendUnreadReminder`、`estimateNotifyAudience` の `eventKey: 'unreadReminder'`、`firebase-messaging-sw.js` の `unreadReminder` の文言)。callable の名前・引数・戻り値(`unreadCount` / `sent`)を変えたら、ツールの `onRemindSend()` も直す
 - 訂正・削除(`saveAnn()` の編集 / `submitAnnPayload()` の `update`、`confirmDeleteAnn()` → ツールの `EDIT_KEYS`・`checkEditPayload()`・`updateOne()`・`deleteOne()`)。`onAnnouncementNotify` の送る条件(公開済み × 必読 × `notifiedAt` が無い)を変えたら、ツールの `wouldNotify()` も直す
+- 手順書(`manualCategories`・`manualIcons`・`MANUAL_FILE_SIZE_LIMIT`・`openManEditor()` の既定値、`saveManEditor()` / `uploadNewManual()` → ツールの `MANUAL_CATEGORIES`・`MANUAL_ICONS`・`MANUAL_FILE_SIZE_LIMIT`・`MANUAL_KEYS`・`buildManPayload()`・`checkManPayload()`・`sendManOne()`)。`storage.rules`(50MB 未満・管理者のみ)、`onManualCreated`、`firebase-messaging-sw.js` の `manualAdded` の文言、`estimateNotifyAudience` の `eventKey: 'manualAdded'` も写している
+- 各社アプリは手順書の `fileUrl` をインラインの `onclick` に文字列のまま埋め込んで開くため、ファイル名に `'` などがあると開けなくなる(アプリ側の作り)。ツールは `MANUAL_BAD_NAME_CHARS` に当たるファイル名を送らない。アプリ側でこの作りを直したら、ツールの制限もゆるめてよい
 - `COMPANIES` の `rendersHtml` は、お知らせを HTML のまま表示する社を `< > &` を含む投稿の送信先から外す仕組み。いまは3社とも `false`(HI-LINE は 0.4.9 で解除)。各社アプリでお知らせの表示を変えるときは、文字として表示する作り(`escHtml()`)を崩さないこと。崩れた社が出たら、その社を `true` にする
 
 ### 検証について
@@ -186,12 +219,13 @@
 - 次にエミュレーターで検証するときも、まずログインと書き込みが通るかを確かめる
 - 0.3.0(送ったお知らせ・未読リマインド)は 2026-10-20 にエミュレーターで確認済み。3社に必読で一括送信し、乗務員・管理者として既読・確認を付けたうえで、ツールの数字(対象・既読・割合・確認済み・未読者)が3社とも各社アプリの写しの `fetchAnnReadStatus()` と一致した(確認済みは、アプリの CSV が管理者の確認も数えて 2、ツールは乗務員だけで 1)。リマインドは、キャンセルでは何も呼ばれず、送ると各社の `sendUnreadReminder` が1回ずつ送信まで進み(ボタンの2度押しでも1回)、1社を送信直前にログアウトさせても他社は送られた。未読0の社は選べず、未ログインの社・お知らせが無い社はその旨が出た。トークンは最初から最後まで0件
 - 0.4.0(訂正・削除)は 2026-10-21 にエミュレーターで確認済み。訂正では、直した項目と `updatedAt` だけが変わり、ほかの項目と `notifiedAt` は変わらなかった(項目数も同じ)。訂正のあと `onAnnouncementNotify` は動いたが送信までは進まなかった。`notifiedAt` の無い必読の社は選べず、確認画面を開いたあとに `notifiedAt` を消した社・`updatedAt` が変わった社は、書き込まずに止まった(このとき `onAnnouncementNotify` も動かなかった)。ボタンの2度押しでも書き込みは各社1回。削除では、選んだ社の本体だけが消え、`reads` は残り、ほかの社は変わらなかった。トークンは最初から最後まで0件
+- 0.5.0(手順書を送る)は 2026-10-21 にエミュレーター(Storage も起動)で確認済み。3社に同じIDで登録でき、項目名・型がアプリの写しから登録した手順書と15項目とも一致した(`notifiedAt` を含む)。乗務員としてアプリの写しで一覧・詳細に出て、ファイルも中身どおりに取れた。`onManualCreated` は各社1回だけ動いた。1社をアップロードのあと(手順書の作成の前)で失敗させ、同じIDで再送しても、ファイル・手順書とも1件のままで `onManualCreated` も1回だった。ファイル名に `'` を含むもの・ちょうど 50MB のものは送れなかった。必読でないときは `readDeadline` が `null` になった。トークンは最初から最後まで0件
 - エミュレーターは、ドキュメントID の降順の範囲指定(`orderBy(documentId, 'desc')`)に対応していない。ツールは昇順で読んで手元で並べている
 - `inspect.js fnlog` の「送信まで進んだ回数」は関数ごとに数える。callable はブラウザの事前確認でも開始・終了の行が出るので、開始の行の数は実行回数の2倍になる
 
 ## エミュレーターでの確認(本番には触れない)
 
-アプリやツールを変えたときに、3社のエミュレーター(各社の `firestore.rules` と `functions` を読み込む)で確かめるための道具が `emulator/` にあります。作業用のファイルは Google ドライブの外(既定: `%LOCALAPPDATA%\matomete-broadcast-emu`)に作ります。
+アプリやツールを変えたときに、3社のエミュレーター(各社の `firestore.rules`・`storage.rules`・`functions` を読み込む。0.5.0 から Storage も起動)で確かめるための道具が `emulator/` にあります。作業用のファイルは Google ドライブの外(既定: `%LOCALAPPDATA%\matomete-broadcast-emu`)に作ります。
 
 ```
 node emulator/prepare.js --repos <3社のリポジトリを並べたフォルダ>   (初回・各社を更新したとき)
@@ -203,8 +237,10 @@ node serve.js                                                         (ツール
 - ツールは `http://localhost:8765/?emulator=1` で開くとエミュレーターに接続します(画面上部にオレンジの帯が出る)
 - 各社アプリの写し(エミュレーター接続版)は `http://localhost:8766/hiline/index.html`(`alogi` / `meiho` も同様)。比較用の投稿をアプリから作れます
 - 検証用アカウント(コード・パスワード)は `emulator/config.js` の `TEST_USERS`。エミュレーターの中にだけあり、本番とは無関係です
-- 中身の確認: `node emulator/inspect.js list`(一覧)/ `compare <key> <idA> <idB>`(項目名・型の比較)/ `fnlog`(`onAnnouncementNotify` の実行回数と、`sendUnreadReminder` が送信まで進んだ回数)/ `tokens`
-- 確認画面の人数を見るときは `node emulator/seed.js --tokens` で架空の通知トークンを入れる。**必読の送信を試す前に必ず `--clear-tokens` で消す**(トークンがあると functions が本物の FCM に送ろうとするため)
+- 中身の確認: `node emulator/inspect.js list`(一覧)/ `compare <key> <idA> <idB>`(項目名・型の比較)/ `fnlog`(`onAnnouncementNotify`・`onManualCreated` の実行回数と、`sendUnreadReminder` などが送信まで進んだ回数)/ `tokens` / `storage`(Storage の `manuals/` の下のファイル)。`list`・`get`・`compare` に `--col manuals` を付けると手順書を見る
+- 確認画面の人数を見るときは `node emulator/seed.js --tokens` で架空の通知トークンを入れる。**必読・リマインド・手順書の送信を試す前に必ず `--clear-tokens` で消す**(トークンがあると functions が本物の FCM に送ろうとするため)
+- Storage エミュレーターのファイルは `seed.js` では消えません(エミュレーターを止めると消える)
+- 手順書のファイルを選ぶ操作は、ブラウザの開発者ツールなどから `DataTransfer` で `File` を入力欄に入れても試せます
 
 ## ファイル
 
@@ -218,7 +254,7 @@ node serve.js                                                         (ツール
 
 このリポジトリは public で、GitHub Pages は `main` のルートをそのまま配ります。`README.md`・`emulator/` なども公開URLの下から読めます。パスワードや鍵はコミットしないこと(`emulator/config.js` のパスワードはエミュレーター専用の架空のもの)。
 
-外部から読み込むのは gstatic の Firebase JS SDK(compat 10.14.1。各社アプリと同じ版)だけです。内容が書き換えられていたら読み込まないよう integrity を付けています。
+外部から読み込むのは gstatic の Firebase JS SDK(compat 10.14.1。各社アプリと同じ版。app・auth・firestore・functions と、0.5.0 から storage)だけです。内容が書き換えられていたら読み込まないよう integrity を付けています。
 
 通信できる宛先は、SDK のコードで確かめた次のものだけに絞っています(ツール本体 `index.html` の Content-Security-Policy)。
 
@@ -227,6 +263,7 @@ node serve.js                                                         (ツール
 | `identitytoolkit.googleapis.com` | ログイン |
 | `securetoken.googleapis.com` | ログインの更新 |
 | `firestore.googleapis.com` | Firestore の読み書き |
+| `firebasestorage.googleapis.com` | 手順書のファイルのアップロードとダウンロードURLの取得(0.5.0 から。Storage SDK が通信するのはここだけ) |
 | `asia-northeast1-anzen-matomete-app.cloudfunctions.net` ほか2社分 | 人数の概算(`estimateNotifyAudience`)・未読リマインド(`sendUnreadReminder`) |
 | `127.0.0.1` / `localhost` | 検証用のエミュレーター(エミュレーター接続は `localhost:8765` で開いたときだけ有効) |
 

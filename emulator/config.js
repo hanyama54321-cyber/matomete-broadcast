@@ -11,15 +11,15 @@ const FIREBASE_TOOLS_VERSION = '15.23.0';
 const COMPANIES = [
   {
     key: 'hiline', label: 'HI-LINE', repo: 'matomete-app', projectId: 'anzen-matomete-app',
-    ports: { auth: 9101, firestore: 8101, functions: 5101, hub: 4401, logging: 4501, eventarc: 9301, tasks: 9401, websocket: 9151, storageDummy: 9199 },
+    ports: { auth: 9101, firestore: 8101, functions: 5101, hub: 4401, logging: 4501, eventarc: 9301, tasks: 9401, websocket: 9151, storage: 9201 },
   },
   {
     key: 'alogi', label: 'A-LOGI', repo: 'matomete-alogi', projectId: 'matomete-alogi',
-    ports: { auth: 9102, firestore: 8102, functions: 5102, hub: 4402, logging: 4502, eventarc: 9302, tasks: 9402, websocket: 9152, storageDummy: 9199 },
+    ports: { auth: 9102, firestore: 8102, functions: 5102, hub: 4402, logging: 4502, eventarc: 9302, tasks: 9402, websocket: 9152, storage: 9202 },
   },
   {
     key: 'meiho', label: '名豊興運', repo: 'matomete-meiho', projectId: 'matomete-meiho',
-    ports: { auth: 9103, firestore: 8103, functions: 5103, hub: 4403, logging: 4503, eventarc: 9303, tasks: 9403, websocket: 9153, storageDummy: 9199 },
+    ports: { auth: 9103, firestore: 8103, functions: 5103, hub: 4403, logging: 4503, eventarc: 9303, tasks: 9403, websocket: 9153, storage: 9203 },
   },
 ];
 

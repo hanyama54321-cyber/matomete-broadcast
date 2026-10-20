@@ -1,10 +1,10 @@
 // 使い方: node emulator/start.js [--work <作業フォルダ>]   (先に prepare.js を実行しておく)
 //
-// 3社のエミュレーター(auth・firestore・functions)を同時に起動し、各社アプリの写しを
+// 3社のエミュレーター(auth・firestore・functions・storage)を同時に起動し、各社アプリの写しを
 // http://localhost:8766/<key>/index.html で配る(key は hiline / alogi / meiho)。
 // ログは画面と <work>/<key>/emulator.log に出す。止めるときは Ctrl+C。
-// ※ 各社の projectId のまま起動するが、エミュレーターで動かすのは auth・firestore・functions だけで、
-//   Storage は写しの側でダミーのポートへ向けている。通知トークンを入れたまま必読を送ると、functions が
+// ※ 各社の projectId のまま起動するが、エミュレーターで動かすのは auth・firestore・functions・storage だけ。
+//   通知トークンを入れたまま必読・手順書を送ると、functions が
 //   本物の FCM に送ろうとするため、必読の送信を試すときはトークンを入れない(seed.js 参照)。
 'use strict';
 
@@ -27,7 +27,7 @@ let ready = 0;
 for (const c of COMPANIES) {
   const dir = path.join(work, c.key);
   const log = fs.createWriteStream(path.join(dir, 'emulator.log'), { flags: 'w' });
-  const child = spawn(process.execPath, [firebaseBin, 'emulators:start', '--only', 'auth,firestore,functions', '--project', c.projectId], {
+  const child = spawn(process.execPath, [firebaseBin, 'emulators:start', '--only', 'auth,firestore,functions,storage', '--project', c.projectId], {
     cwd: dir,
     env: { ...process.env, FORCE_COLOR: '0', CI: '1' },
   });

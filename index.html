@@ -12,7 +12,7 @@
        127.0.0.1 / localhost          … 検証用のエミュレーター(このPC内)
      frame-src は auth が使う場合のある各社の authDomain だけ。
      各社の projectId・authDomain・Functions のリージョンを変えたら、ここも直すこと -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src data:; connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://asia-northeast1-anzen-matomete-app.cloudfunctions.net https://asia-northeast1-matomete-alogi.cloudfunctions.net https://asia-northeast1-matomete-meiho.cloudfunctions.net http://127.0.0.1:* http://localhost:*; frame-src https://anzen-matomete-app.firebaseapp.com https://matomete-alogi.firebaseapp.com https://matomete-meiho.firebaseapp.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src data:; connect-src https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebasestorage.googleapis.com https://asia-northeast1-anzen-matomete-app.cloudfunctions.net https://asia-northeast1-matomete-alogi.cloudfunctions.net https://asia-northeast1-matomete-meiho.cloudfunctions.net http://127.0.0.1:* http://localhost:*; frame-src https://anzen-matomete-app.firebaseapp.com https://matomete-alogi.firebaseapp.com https://matomete-meiho.firebaseapp.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>周知 一括投稿ツール</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313294B'/%3E%3Cpath d='M16 36V28l24-10v28L16 36z' fill='%23fff'/%3E%3Crect x='42' y='26' width='6' height='12' rx='2' fill='%23fff'/%3E%3C/svg%3E">
 <style>
@@ -367,12 +367,13 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js" integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js" integrity="sha384-hB0JJ4rNFhrwFXdiM7+wikJ3oIxttbx7D6zdYANzqbCt8CL8nLpOgbABsh5Mp3WC" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js" integrity="sha384-XgUhjZUY/4vSJ8bUS7DFmLGK73fbJgS+nlrQDEC5X3QBpGgO+597wN8Syegw3ONj" crossorigin="anonymous"></script>
 </head>
 <body>
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.4.0</span>
+  <span class="ver">Ver.0.5.0</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -389,6 +390,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   <nav class="tabs" role="tablist" aria-label="機能">
     <button type="button" class="tab" role="tab" id="tab-send" aria-selected="true" aria-controls="pane-send" data-tab="send">お知らせを送る</button>
     <button type="button" class="tab" role="tab" id="tab-sent" aria-selected="false" aria-controls="pane-sent" data-tab="sent">送ったお知らせ</button>
+    <button type="button" class="tab" role="tab" id="tab-man" aria-selected="false" aria-controls="pane-man" data-tab="man">手順書を送る</button>
   </nav>
 
   <div id="pane-send" role="tabpanel" aria-labelledby="tab-send">
@@ -609,6 +611,78 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       <div id="fix-result"></div>
     </section>
   </div>
+
+  <!-- 手順書を送る(0.5.0。並び・既定値・選択肢は各社アプリの「新規マニュアル追加」と同じ) -->
+  <div id="pane-man" role="tabpanel" aria-labelledby="tab-man" hidden>
+    <section class="step" aria-labelledby="h-man">
+      <h2 id="h-man">手順書を送る(1回だけ書く)</h2>
+      <p class="hint">ログインしている社に、同じ手順書(ファイル1つ)を新しく登録します。<b>登録すると、必読かどうかに関係なく、各社の全乗務員にプッシュ通知が飛びます。</b>手順書の訂正・削除・ファイルの差し替えは各社アプリで行ってください。</p>
+      <fieldset class="lockable" id="man-fields">
+        <div class="form-grid">
+          <div>
+            <div class="form-group">
+              <label class="form-label" for="m-title">タイトル<span class="req">*</span></label>
+              <input type="text" id="m-title" class="input" placeholder="例: 配送基本マニュアル" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="m-desc">説明<span class="opt">(任意)</span></label>
+              <textarea id="m-desc" class="input" rows="3" placeholder="マニュアルの内容を簡単に説明してください"></textarea>
+            </div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-m-icon">アイコン</span>
+              <div class="chips" id="m-icons" role="group" aria-labelledby="lbl-m-icon"></div>
+            </div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-m-cat">カテゴリ</span>
+              <div class="chips" id="m-cats" role="group" aria-labelledby="lbl-m-cat"></div>
+            </div>
+          </div>
+          <div>
+            <div class="form-group">
+              <label class="form-label" for="m-file">ファイル<span class="req">*</span></label>
+              <input type="file" id="m-file" class="input">
+              <div class="sub-hint" id="m-file-info">形式は問いません。上限50MB(50MB ちょうどは不可)。</div>
+              <div class="field-error" id="m-file-error" hidden></div>
+            </div>
+            <div class="form-group">
+              <label class="toggle-row" for="m-mustread">
+                <span>
+                  <span class="t-title">✋ 必読に設定</span><br>
+                  <span class="t-sub">既読期限を設定してドライバーに通知</span>
+                </span>
+                <input type="checkbox" class="switch" id="m-mustread" aria-label="必読に設定">
+              </label>
+              <div class="dl-fields" id="m-dl-fields" hidden>
+                <input type="date" id="m-dl-date" class="input" aria-label="既読期限の日付">
+                <input type="time" id="m-dl-time" class="input" aria-label="既読期限の時刻" value="23:59">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="m-author">投稿者名<span class="opt">(任意)</span></label>
+              <input type="text" id="m-author" class="input" placeholder="空欄なら各社でログインした人の名前" autocomplete="off">
+              <div class="sub-hint">空欄のときは各社の users の名前(アプリと同じ動き)。入力すると3社ともこの名前で登録します。</div>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <div class="rd-sub">送る社</div>
+      <div id="m-cos"></div>
+      <div class="field-error" id="m-why" hidden></div>
+      <div class="inline-row">
+        <button type="button" class="btn danger" id="btn-man-confirm" disabled>確認へ</button>
+      </div>
+    </section>
+
+    <section class="step" id="man-result-section" aria-labelledby="h-man-result" hidden>
+      <h2 id="h-man-result">手順書の登録の結果</h2>
+      <div class="rs-meta" id="m-rs-meta"></div>
+      <ul class="rd-list" id="m-rs-rows"></ul>
+      <div class="sub-hint">失敗した社は「同じIDで再送」できます。同じ場所に上書きされるだけなので、手順書が二重にできることはありません(既に登録できていれば何もしません)。</div>
+      <div class="rs-actions">
+        <button type="button" class="btn ghost" id="btn-man-new">新しい手順書を作る(入力を消す)</button>
+      </div>
+    </section>
+  </div>
 </main>
 
 <div class="actionbar" id="actionbar" hidden>
@@ -676,6 +750,37 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   </div>
 </dialog>
 
+<dialog class="confirm" id="man-dialog" aria-labelledby="mc-title">
+  <div class="cf-wrap">
+    <div class="cf-head">
+      <h3 id="mc-title">手順書の登録の確認</h3>
+      <div class="cf-meta" id="mc-meta"></div>
+    </div>
+    <div class="cf-body">
+      <div class="cf-grid" id="mc-grid"></div>
+      <div class="cf-skip">登録すると、必読かどうかに関係なく、各社の全乗務員(通知を許可している人)にプッシュ通知が飛びます(各社の onManualCreated)。</div>
+      <div id="mc-skips"></div>
+    </div>
+    <div class="cf-foot">
+      <div class="cf-irrev">送信後は取り消せません。</div>
+      <button type="button" class="btn ghost" id="mc-cancel">キャンセル</button>
+      <button type="button" class="btn danger" id="mc-send" disabled>送信する</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="confirm small" id="man-reset-dialog" aria-labelledby="mr-title">
+  <div class="cf-wrap">
+    <div class="cf-head"><h3 id="mr-title">新しい手順書を作りますか？</h3></div>
+    <div class="cf-body">入力した手順書の内容と、いま表示している結果を消します(各社に登録した手順書は消えません)。</div>
+    <div class="cf-foot">
+      <span style="flex:1"></span>
+      <button type="button" class="btn ghost" id="mr-cancel">やめる</button>
+      <button type="button" class="btn" id="mr-ok">消して新しく作る</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="confirm small" id="reset-dialog" aria-labelledby="rd-title">
   <div class="cf-wrap">
     <div class="cf-head"><h3 id="rd-title">新しいお知らせを作りますか？</h3></div>
@@ -697,7 +802,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.4.0';
+  const TOOL_VERSION = '0.5.0';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -729,7 +834,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         appId: '1:163103621501:web:53410bbe65778f5d154c14',
         measurementId: 'G-FQKRCR30BY',
       },
-      emulatorPorts: { auth: 9101, firestore: 8101, functions: 5101 },
+      emulatorPorts: { auth: 9101, firestore: 8101, functions: 5101, storage: 9201 },
     },
     {
       key: 'alogi', label: 'A-LOGI', color: '#D93A3F',
@@ -742,7 +847,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         messagingSenderId: '252853368767',
         appId: '1:252853368767:web:435764e7010e643dfed30a',
       },
-      emulatorPorts: { auth: 9102, firestore: 8102, functions: 5102 },
+      emulatorPorts: { auth: 9102, firestore: 8102, functions: 5102, storage: 9202 },
     },
     {
       key: 'meiho', label: '名豊興運', color: '#13294B',
@@ -755,7 +860,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
         messagingSenderId: '1085038876307',
         appId: '1:1085038876307:web:47acae409d801c44935f66',
       },
-      emulatorPorts: { auth: 9103, firestore: 8103, functions: 5103 },
+      emulatorPorts: { auth: 9103, firestore: 8103, functions: 5103, storage: 9203 },
     },
   ];
 
@@ -810,7 +915,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
   // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
   function lockOut(title, lines) {
-    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#fix-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#fix-dialog', '#man-dialog', '#man-reset-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
       const node = $(sel);
       if (node) node.remove();
     });
@@ -841,7 +946,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     ]);
     return;
   }
-  if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore || !firebase.functions) {
+  if (typeof firebase === 'undefined' || !firebase.auth || !firebase.firestore || !firebase.functions || !firebase.storage) {
     lockOut('Firebase SDK を読み込めませんでした(ログインも送信もできません)', [
       'インターネットにつながっているか確かめてから、ページを再読み込みしてください。',
       '直らない場合は、読み込んだファイルの内容が想定と違う(integrity の不一致)可能性があります。',
@@ -937,14 +1042,16 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     const auth = app.auth();
     const db = app.firestore();
     const fns = app.functions(FUNCTIONS_REGION);
+    const storage = app.storage(); // 手順書のファイル(0.5.0)。バケットは config.storageBucket
     if (EMULATOR) {
       const p = def.emulatorPorts;
       auth.useEmulator(`http://127.0.0.1:${p.auth}`, { disableWarnings: true });
       db.useEmulator('127.0.0.1', p.firestore);
       fns.useEmulator('127.0.0.1', p.functions);
+      storage.useEmulator('127.0.0.1', p.storage);
     }
     const co = {
-      def, auth, db, fns,
+      def, auth, db, fns, storage,
       phase: 'init',       // init / out / busy / ready
       busyText: '',
       msg: '', msgKind: '', // msgKind: '' / 'error' / 'blocked'(投稿できない理由)
@@ -1334,6 +1441,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     renderFixBar();
     renderEditPanel();
     renderDelPanel();
+    renderMan();
   }
 
   /* ===== 確認画面 ===== */
@@ -1531,8 +1639,9 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   // 既存ドキュメントへの set() の上書きは、notifiedAt が消えて必読通知が二重に飛ぶため行わない。
   // 先にサーバーから読み、既にあればトランザクションを始めない(読んだだけのトランザクションでも、
   // 確認用の書き込み(verify)が既存ドキュメントに届くため。エミュレーターではこれで onAnnouncementNotify が起動した)
-  async function writeOnce(co, id, payload) {
-    const ref = co.db.collection('announcements').doc(id);
+  // col: 'announcements'(お知らせ)/ 'manuals'(手順書、0.5.0)
+  async function writeOnce(co, id, payload, col = 'announcements') {
+    const ref = co.db.collection(col).doc(id);
     const pre = await ref.get({ source: 'server' });
     if (pre.exists) return { created: false, existing: pre.data() };
     return co.db.runTransaction(async tx => {
@@ -1831,7 +1940,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#rd-cancel').addEventListener('click', () => $('#reset-dialog').close());
     $('#rd-ok').addEventListener('click', resetForNew);
     window.addEventListener('beforeunload', e => {
-      if (writing || remindWriting || fixWriting) { e.preventDefault(); e.returnValue = ''; }
+      if (writing || remindWriting || fixWriting || manWriting) { e.preventDefault(); e.returnValue = ''; }
     });
   }
 
@@ -1852,7 +1961,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   let remindWriting = false;
 
   function setTab(name) {
-    for (const t of ['send', 'sent']) {
+    for (const t of ['send', 'sent', 'man']) {
       $('#tab-' + t).setAttribute('aria-selected', String(t === name));
       $('#pane-' + t).hidden = t !== name;
     }
@@ -2251,7 +2360,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   let fixWriting = false;
 
   function anyWriting() {
-    return writing || remindWriting || fixWriting;
+    return writing || remindWriting || fixWriting || manWriting;
   }
 
   function isBroadcastId(id) {
@@ -2795,6 +2904,417 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#rm-send').addEventListener('click', onRemindSend);
   }
 
+  /* ===== 手順書を送る(0.5.0) =====
+     各社アプリの新規追加(saveManEditor() → uploadNewManual())と同じ書き込みを、社ごとに順番に行う:
+       1. manuals/{id} がサーバーに既にあれば何もしない
+       2. Storage の manuals/{id}/{ファイル名} に put(進み具合を出す)→ 3. getDownloadURL()
+       4. manuals/{id} を「無ければ作る」(writeOnce)で作る(14項目。項目は増やさない)
+     作成すると各社の onManualCreated(onDocumentCreated)が、必読に関係なく全乗務員へプッシュを送る。
+     ID は3社で同じ(makeBroadcastId())。途中で失敗した社は同じIDで再送でき、Storage は同じ場所に上書きされるだけ */
+  // 各社アプリ manualCategories / manualIcons / MANUAL_FILE_SIZE_LIMIT と同じ(既定は 基本手順 / 📋)
+  const MANUAL_CATEGORIES = ['基本手順', '安全', '車両管理', 'システム', 'その他'];
+  const MANUAL_ICONS = ['📦', '🚨', '🚚', '📱', '📋', '🔧'];
+  const MANUAL_FILE_SIZE_LIMIT = 50 * 1024 * 1024; // 50MB 未満(Storage のルールも 50MB 未満)
+  const MANUAL_KEYS = [
+    'title', 'description', 'category', 'icon', 'fileUrl', 'fileName', 'fileType', 'fileSize',
+    'createdAt', 'updatedAt', 'uploaderUid', 'uploaderName', 'mustRead', 'readDeadline',
+  ];
+  // 各社アプリは手順書の fileUrl を画面のボタン(インラインの onclick)に文字列のまま埋め込んで開く。
+  // ダウンロードURL では ' などがそのまま残るため、これらを含むファイル名は送らない(名前を変えてもらう)
+  const MANUAL_BAD_NAME_CHARS = /['"`\\<>\u0000-\u001f\u007f]/;
+
+  const man = {
+    icon: '📋', category: '基本手順',
+    wantSend: {},     // key → false(送らない)。既定は送る
+    session: null,    // 送信後: { id, content, file, results: { key: { state, note, pct } } }
+  };
+  let manConfirm = null;
+  let manWriting = false;
+
+  function renderManIcons() {
+    const box = $('#m-icons');
+    box.textContent = '';
+    MANUAL_ICONS.forEach(ic => box.append(el('button', {
+      type: 'button', class: 'chip', text: ic, style: 'font-size:18px;padding:6px 10px',
+      'aria-label': `アイコン ${ic}`, dataset: { micon: ic }, 'aria-pressed': String(man.icon === ic),
+    })));
+  }
+
+  function renderManCats() {
+    const box = $('#m-cats');
+    box.textContent = '';
+    MANUAL_CATEGORIES.forEach(c => box.append(el('button', {
+      type: 'button', class: 'chip', text: c, dataset: { mcat: c }, 'aria-pressed': String(man.category === c),
+    })));
+  }
+
+  function initManDeadline() {
+    // 各社アプリと同じ: 日付の初期値は7日後、時刻は 23:59
+    const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const p = n => String(n).padStart(2, '0');
+    $('#m-dl-date').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    $('#m-dl-time').value = '23:59';
+    $('#m-dl-fields').hidden = !$('#m-mustread').checked;
+  }
+
+  function fmtSize(n) {
+    if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)}MB`;
+    if (n >= 1024) return `${Math.round(n / 1024)}KB`;
+    return `${n}B`;
+  }
+
+  // ファイルの問題('' なら問題なし)
+  function manFileProblem(file) {
+    if (!file) return 'ファイルを選んでください';
+    if (file.size >= MANUAL_FILE_SIZE_LIMIT) return 'ファイルサイズは50MB未満にしてください';
+    if (!file.name || MANUAL_BAD_NAME_CHARS.test(file.name)) {
+      return 'ファイル名に \' " ` \\ < > や制御文字が入っています。各社アプリで開けなくなるため、ファイル名を変えてから選び直してください';
+    }
+    return '';
+  }
+
+  function readMan() {
+    const mustRead = $('#m-mustread').checked;
+    let readDeadline = null;
+    // 各社アプリ saveManEditor() と同じ: 必読のときだけ、日付があれば 'YYYY-MM-DD HH:MM'(時刻の既定 23:59)
+    if (mustRead) {
+      const date = $('#m-dl-date').value;
+      const time = $('#m-dl-time').value || '23:59';
+      if (date) readDeadline = `${date} ${time}`;
+    }
+    const files = $('#m-file').files;
+    return {
+      title: $('#m-title').value.trim(),
+      description: $('#m-desc').value.trim(),
+      icon: man.icon,
+      category: man.category,
+      mustRead,
+      readDeadline,
+      file: files && files[0] ? files[0] : null,
+      authorOverride: $('#m-author').value.trim(),
+    };
+  }
+
+  function manAuthorName(co, content) {
+    if (content.authorOverride) return content.authorOverride;
+    const n = co.login && co.login.name;
+    return typeof n === 'string' && n.trim() ? n : '';
+  }
+
+  function manEligibility(co, content) {
+    if (co.phase === 'init' || co.phase === 'busy') return '確認中です';
+    if (co.phase !== 'ready') return co.msgKind === 'blocked' ? '登録できないコードです(ログイン欄を参照)' : '未ログイン';
+    if (!manAuthorName(co, content)) return 'ログインした人の名前(users.name)が空です。投稿者名を入力してください';
+    return '';
+  }
+
+  function manTargets(content) {
+    return cos.filter(co => !manEligibility(co, content) && man.wantSend[co.def.key] !== false);
+  }
+
+  function renderMan() {
+    if (!booted) return;
+    const locked = !!man.session;
+    $('#man-fields').disabled = locked || manWriting;
+    const content = readMan();
+    const fileErr = content.file ? manFileProblem(content.file) : '';
+    $('#m-file-error').textContent = fileErr;
+    $('#m-file-error').hidden = !fileErr;
+    $('#m-file-info').textContent = content.file
+      ? `${content.file.name}(${fmtSize(content.file.size)}・${content.file.type || '種類不明'})`
+      : '形式は問いません。上限50MB(50MB ちょうどは不可)。';
+    const box = $('#m-cos');
+    box.textContent = '';
+    for (const co of cos) {
+      const why = manEligibility(co, content);
+      box.append(el('label', { class: 'pick-row' },
+        el('input', { type: 'checkbox', dataset: { mpick: co.def.key }, checked: !why && man.wantSend[co.def.key] !== false, disabled: !!why || locked }),
+        el('span', {}, el('b', { text: co.def.label }), why ? el('span', { class: 'why', text: why }) : null)));
+    }
+    const problems = [];
+    if (!content.title) problems.push('タイトルを入力してください');
+    if (!content.file) problems.push('ファイルを選んでください');
+    else if (fileErr) problems.push(fileErr);
+    if (!manTargets(content).length) problems.push('送る社がありません(ログインと「送る社」を確認してください)');
+    const showWhy = !locked && (content.title || content.file) && problems.length;
+    $('#m-why').textContent = showWhy ? problems.join(' / ') : '';
+    $('#m-why').hidden = !showWhy;
+    const n = manTargets(content).length;
+    const btn = $('#btn-man-confirm');
+    btn.textContent = n ? `確認へ(${n}社)` : '確認へ';
+    btn.disabled = locked || anyWriting() || problems.length > 0;
+  }
+
+  function buildManPayload(co, content, fileUrl) {
+    const FV = firebase.firestore.FieldValue;
+    return {
+      title: content.title,
+      description: content.description,
+      category: content.category,
+      icon: content.icon,
+      fileUrl,
+      fileName: content.file.name,
+      fileType: content.file.type || null,
+      fileSize: content.file.size,
+      createdAt: FV.serverTimestamp(),
+      updatedAt: FV.serverTimestamp(),
+      uploaderUid: co.login.code,
+      uploaderName: manAuthorName(co, content),
+      mustRead: content.mustRead,
+      readDeadline: content.readDeadline,
+    };
+  }
+
+  // 書き込む直前の形の確認(ルールは項目の形を検査しないため)
+  function checkManPayload(p, co) {
+    const keys = Object.keys(p).sort().join(',');
+    if (keys !== MANUAL_KEYS.slice().sort().join(',')) throw new Error('書き込む項目が想定と違います');
+    const isStr = v => typeof v === 'string';
+    const bad = [];
+    if (!isStr(p.title) || !p.title || p.title !== p.title.trim()) bad.push('title');
+    if (!isStr(p.description) || p.description !== p.description.trim()) bad.push('description');
+    if (!MANUAL_CATEGORIES.includes(p.category)) bad.push('category');
+    if (!MANUAL_ICONS.includes(p.icon)) bad.push('icon');
+    const urlOk = EMULATOR
+      ? isStr(p.fileUrl) && p.fileUrl.startsWith(`http://127.0.0.1:${co.def.emulatorPorts.storage}/`)
+      : isStr(p.fileUrl) && p.fileUrl.startsWith('https://firebasestorage.googleapis.com/');
+    if (!urlOk) bad.push('fileUrl');
+    if (!isStr(p.fileName) || !p.fileName || MANUAL_BAD_NAME_CHARS.test(p.fileName)) bad.push('fileName');
+    if (!(p.fileType === null || (isStr(p.fileType) && p.fileType))) bad.push('fileType');
+    if (!Number.isInteger(p.fileSize) || p.fileSize < 0 || p.fileSize >= MANUAL_FILE_SIZE_LIMIT) bad.push('fileSize');
+    for (const k of ['createdAt', 'updatedAt']) if (!(p[k] instanceof firebase.firestore.FieldValue)) bad.push(k);
+    if (!isStr(p.uploaderUid) || !p.uploaderUid) bad.push('uploaderUid');
+    if (!isStr(p.uploaderName) || !p.uploaderName.trim()) bad.push('uploaderName');
+    if (typeof p.mustRead !== 'boolean') bad.push('mustRead');
+    if (!(p.readDeadline === null || (p.mustRead && isStr(p.readDeadline) && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(p.readDeadline)))) bad.push('readDeadline');
+    if (bad.length) throw new Error('書き込む内容の形が正しくありません: ' + bad.join(', '));
+  }
+
+  function openManConfirm(retryKeys) {
+    if (anyWriting()) return;
+    let content, targets, id;
+    if (retryKeys) {
+      // 再送: 送ったときの内容・ファイル・ID のまま、選んだ社だけ
+      content = man.session.content;
+      id = man.session.id;
+      targets = cos.filter(co => retryKeys.includes(co.def.key));
+    } else {
+      content = readMan();
+      if (!content.title || !content.file || manFileProblem(content.file)) return;
+      targets = manTargets(content);
+      id = makeBroadcastId();
+    }
+    if (!targets.length) return;
+    const session = { id, content, targets, retry: !!retryKeys, countCells: {}, pending: targets.length };
+    manConfirm = session;
+    $('#mc-title').textContent = retryKeys ? '手順書の再送の確認(同じID)' : '手順書の登録の確認';
+    $('#mc-meta').textContent = `一括送信ID: ${id} ・ 現在時刻: ${fmtNow()} ・ 送信先: ${targets.map(c => c.def.label).join('・')}(${targets.length}社)`;
+    const grid = $('#mc-grid');
+    grid.textContent = '';
+    for (const co of targets) {
+      const cell = el('dd', { text: '取得中…' });
+      session.countCells[co.def.key] = cell;
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${co.login.code} でログイン中` })),
+        el('div', { class: 'co-body' },
+          el('dl', { class: 'cf-dl' },
+            el('dt', { text: 'タイトル' }), el('dd', { text: `${content.icon} ${content.title}` }),
+            el('dt', { text: '投稿者名' }), el('dd', { text: manAuthorName(co, content) }),
+            el('dt', { text: 'カテゴリ' }), el('dd', { text: content.category }),
+            el('dt', { text: '必読' }), el('dd', { text: content.mustRead ? `あり(既読期限 ${content.readDeadline || 'なし'})` : 'なし' }),
+            el('dt', { text: 'ファイル' }), el('dd', { text: `${content.file.name}(${fmtSize(content.file.size)})` }),
+            el('dt', { text: 'ロック画面' }),
+            el('dd', {}, el('div', { class: 'lock-preview' },
+              el('div', { class: 'lp-title', text: '📋 手順書の更新' }),
+              el('div', { text: `🗂️ 新しい手順書: ${content.title.slice(0, 60)}` }))),
+            el('dt', { text: '通知の対象' }), cell))));
+    }
+    const skips = $('#mc-skips');
+    skips.textContent = '';
+    if (!retryKeys) {
+      const out = cos.filter(co => !targets.includes(co));
+      if (out.length) skips.append(el('div', { class: 'cf-skip', text: '送らない社: ' + out.map(co => `${co.def.label}(${manEligibility(co, content) || '「送る社」を外している'})`).join(' / ') }));
+    } else {
+      skips.append(el('div', { class: 'cf-skip', text: '同じIDで送ります。既に登録できている社には何もしません(通知も飛びません)。' }));
+    }
+    $('#mc-send').textContent = `送信する(${targets.length}社)`;
+    $('#mc-send').disabled = true;
+    $('#man-dialog').showModal();
+    $('#mc-cancel').focus();
+    targets.forEach(async co => {
+      const cell = session.countCells[co.def.key];
+      try {
+        const n = await fetchAudience(co, { eventKey: 'manualAdded', role: 'driver' });
+        if (manConfirm !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ok', text: `通知を許可している約${n}名` }));
+      } catch (e) {
+        console.error(`[${co.def.label}] 概算人数の取得に失敗:`, e);
+        if (manConfirm !== session) return;
+        cell.textContent = '';
+        cell.append(el('span', { class: 'count-ng', text: '概算人数を取得できませんでした' }),
+          el('div', { class: 'sub-hint', text: `(${errText(e)})送信はできます。` }));
+      } finally {
+        session.pending -= 1;
+        if (manConfirm === session) $('#mc-send').disabled = session.pending > 0;
+      }
+    });
+  }
+
+  function closeManConfirm() {
+    manConfirm = null;
+    const d = $('#man-dialog');
+    if (d.open) d.close();
+  }
+
+  // 1社分。戻り値の note は結果の欄に出す文
+  async function sendManOne(co, id, content, onPct) {
+    if (co.phase !== 'ready') throw new Error('未ログインになりました');
+    if (!isBroadcastId(id)) throw new Error('ID の形が正しくありません');
+    const docRef = co.db.collection('manuals').doc(id);
+    const pre = await withTimeout(docRef.get({ source: 'server' }), WRITE_TIMEOUT_MS);
+    if (pre.exists) return '既に登録されています(何もしていません)';
+    // 2. Storage にアップロード(各社アプリと同じ場所・同じ put)
+    const task = co.storage.ref(`manuals/${id}/${content.file.name}`).put(content.file);
+    await new Promise((resolve, reject) => {
+      task.on('state_changed', snap => {
+        onPct(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0);
+      }, reject, resolve);
+    });
+    // 3. ダウンロードURL
+    const fileUrl = await withTimeout(task.snapshot.ref.getDownloadURL(), WRITE_TIMEOUT_MS);
+    // 4. 無ければ作る
+    const payload = buildManPayload(co, content, fileUrl);
+    checkManPayload(payload, co);
+    const r = await withTimeout(writeOnce(co, id, payload, 'manuals'), WRITE_TIMEOUT_MS);
+    return r.created ? '登録しました' : '既に登録されていました(ファイルだけ同じ場所に上書き)';
+  }
+
+  async function onManSend() {
+    const session = manConfirm;
+    if (!session || anyWriting() || session.pending > 0) return;
+    $('#mc-send').disabled = true;
+    closeManConfirm();
+    manWriting = true;
+    if (!session.retry) {
+      man.session = { id: session.id, content: session.content, results: {} };
+      for (const co of cos) {
+        man.session.results[co.def.key] = session.targets.includes(co)
+          ? { state: 'waiting', note: '' }
+          : { state: 'skipped', note: manEligibility(co, session.content) || '「送る社」を外している' };
+      }
+    }
+    const results = man.session.results;
+    for (const co of session.targets) results[co.def.key] = { state: 'waiting', note: '' };
+    renderMan();
+    renderManResult();
+    // 社ごとに順番に。1社が失敗しても他社は止めない
+    for (const co of session.targets) {
+      const r = results[co.def.key];
+      r.state = 'sending';
+      r.note = '確認中…';
+      renderManResult();
+      try {
+        r.note = await sendManOne(co, session.id, session.content, pct => {
+          r.note = `アップロード中… ${pct}%`;
+          renderManResult();
+        });
+        r.state = 'success';
+      } catch (e) {
+        console.error(`[${co.def.label}] 手順書の登録に失敗:`, e);
+        r.state = 'failed';
+        r.note = errText(e);
+      }
+      renderManResult();
+    }
+    manWriting = false;
+    renderMan();
+    renderManResult();
+    renderAll();
+  }
+
+  function renderManResult() {
+    const s = man.session;
+    $('#man-result-section').hidden = !s;
+    if (!s) return;
+    $('#m-rs-meta').textContent = `一括送信ID: ${s.id} ・ ${s.content.icon} ${s.content.title} ・ ${s.content.file.name}`;
+    const box = $('#m-rs-rows');
+    box.textContent = '';
+    for (const co of cos) {
+      const r = s.results[co.def.key];
+      const cls = { success: 'st-success', failed: 'st-failed', skipped: 'st-skipped' }[r.state] || 'st-sending';
+      const label = { success: '成功', failed: '失敗', skipped: '対象外', waiting: '待機中', sending: '送信中' }[r.state];
+      box.append(el('li', {},
+        el('span', { class: 'rs-co', style: `--co:${co.def.color}`, text: co.def.label }),
+        el('span', { class: cls }, `${label}${r.note ? ': ' + r.note : ''}`,
+          r.state === 'failed' ? el('button', { type: 'button', class: 'btn ghost small', style: 'margin-left:8px', dataset: { manRetry: co.def.key }, disabled: manWriting || co.phase !== 'ready', text: '同じIDで再送' }) : null)));
+    }
+    $('#btn-man-new').disabled = manWriting;
+  }
+
+  function resetMan() {
+    if (manWriting) return;
+    man.session = null;
+    $('#m-title').value = '';
+    $('#m-desc').value = '';
+    $('#m-file').value = '';
+    $('#m-mustread').checked = false;
+    $('#m-author').value = '';
+    man.icon = '📋';
+    man.category = '基本手順';
+    initManDeadline();
+    renderManIcons();
+    renderManCats();
+    renderManResult();
+    renderMan();
+  }
+
+  function wireMan() {
+    renderManIcons();
+    renderManCats();
+    initManDeadline();
+    $('#tab-man').addEventListener('click', () => setTab('man'));
+    ['#m-title', '#m-desc', '#m-author', '#m-dl-date', '#m-dl-time'].forEach(sel => $(sel).addEventListener('input', renderMan));
+    $('#m-file').addEventListener('change', renderMan);
+    $('#m-mustread').addEventListener('change', () => {
+      $('#m-dl-fields').hidden = !$('#m-mustread').checked;
+      renderMan();
+    });
+    $('#m-icons').addEventListener('click', e => {
+      const b = e.target.closest('[data-micon]');
+      if (!b) return;
+      man.icon = b.dataset.micon;
+      renderManIcons();
+    });
+    $('#m-cats').addEventListener('click', e => {
+      const b = e.target.closest('[data-mcat]');
+      if (!b) return;
+      man.category = b.dataset.mcat;
+      renderManCats();
+    });
+    $('#m-cos').addEventListener('change', e => {
+      const b = e.target.closest('[data-mpick]');
+      if (!b) return;
+      man.wantSend[b.dataset.mpick] = b.checked;
+      renderMan();
+    });
+    $('#btn-man-confirm').addEventListener('click', () => openManConfirm(null));
+    $('#m-rs-rows').addEventListener('click', e => {
+      const b = e.target.closest('[data-man-retry]');
+      if (b && !b.disabled) openManConfirm([b.dataset.manRetry]);
+    });
+    $('#mc-cancel').addEventListener('click', closeManConfirm);
+    $('#man-dialog').addEventListener('cancel', e => { e.preventDefault(); closeManConfirm(); }); // Esc もキャンセル扱い
+    $('#mc-send').addEventListener('click', onManSend);
+    $('#btn-man-new').addEventListener('click', () => { if (!manWriting) $('#man-reset-dialog').showModal(); });
+    $('#mr-cancel').addEventListener('click', () => $('#man-reset-dialog').close());
+    $('#mr-ok').addEventListener('click', () => { $('#man-reset-dialog').close(); resetMan(); });
+    renderMan();
+  }
+
   /* ===== 起動 ===== */
   if (EMULATOR) {
     $('#emu-banner').hidden = false;
@@ -2809,6 +3329,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   wireForm();
   wireSent();
   wireFix();
+  wireMan();
   $('#app').hidden = false;
   $('#actionbar').hidden = false;
   booted = true;

@@ -2,7 +2,7 @@
 //
 // 3社のリポジトリ(matomete-app / matomete-alogi / matomete-meiho)は読むだけで、何も書き込まない。
 // 作業フォルダ(既定: %LOCALAPPDATA%\matomete-broadcast-emu)に次を作る。
-//   <work>/<key>/        firestore.rules・firestore.indexes.json・functions の写しと、社ごとにポートを分けた firebase.json
+//   <work>/<key>/        firestore.rules・firestore.indexes.json・storage.rules・functions の写しと、社ごとにポートを分けた firebase.json
 //   <work>/apps/<key>/   各社アプリの写し。index.html にだけ「エミュレーターへ接続する」数行を足す
 //   <work>/node_modules  firebase-tools(各社リポジトリと同じ版)
 // Google ドライブの中に node_modules を作らないよう、作業フォルダはリポジトリの外に置く。
@@ -44,12 +44,15 @@ function firebaseJson(c) {
   const p = c.ports;
   return {
     firestore: { rules: 'firestore.rules', indexes: 'firestore.indexes.json' },
+    storage: { rules: 'storage.rules' },
     functions: [{ source: 'functions', codebase: 'default', runtime: 'nodejs22' }],
     emulators: {
       singleProjectMode: true,
       auth: { host: '127.0.0.1', port: p.auth },
       firestore: { host: '127.0.0.1', port: p.firestore, websocketPort: p.websocket },
       functions: { host: '127.0.0.1', port: p.functions },
+      // 手順書の登録(0.5.0)の確認用。storage.rules は Firestore の users を参照する(同じエミュレーターの Firestore を見る)
+      storage: { host: '127.0.0.1', port: p.storage },
       eventarc: { host: '127.0.0.1', port: p.eventarc },
       tasks: { host: '127.0.0.1', port: p.tasks },
       hub: { host: '127.0.0.1', port: p.hub },
@@ -67,11 +70,11 @@ function patchAppIndex(html, c) {
   const p = c.ports;
   const inject = [
     anchor,
-    '// [matomete-broadcast 検証用の写し] エミュレーターにだけ接続する。Storage はエミュレーターを起動しないため、使われても失敗するだけ',
+    '// [matomete-broadcast 検証用の写し] エミュレーターにだけ接続する(Storage も含む)',
     `fbAuth.useEmulator('http://127.0.0.1:${p.auth}', { disableWarnings: true });`,
     `fbDb.useEmulator('127.0.0.1', ${p.firestore});`,
     `fbFunctions.useEmulator('127.0.0.1', ${p.functions});`,
-    `fbStorage.useEmulator('127.0.0.1', ${p.storageDummy});`,
+    `fbStorage.useEmulator('127.0.0.1', ${p.storage});`,
   ].join('\n');
   return html.replace(anchor, inject);
 }
@@ -86,13 +89,14 @@ if (!fs.existsSync(path.join(work, 'node_modules', 'firebase-tools', 'package.js
 
 for (const c of COMPANIES) {
   const repo = path.join(reposDir, c.repo);
-  if (!fs.existsSync(path.join(repo, 'firestore.rules')) || !fs.existsSync(path.join(repo, 'index.html'))) {
-    console.error(`${repo} に firestore.rules / index.html がありません`);
+  if (!['firestore.rules', 'storage.rules', 'index.html'].every(f => fs.existsSync(path.join(repo, f)))) {
+    console.error(`${repo} に firestore.rules / storage.rules / index.html がありません`);
     process.exit(1);
   }
   const dir = path.join(work, c.key);
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(path.join(repo, 'firestore.rules'), path.join(dir, 'firestore.rules'));
+  fs.copyFileSync(path.join(repo, 'storage.rules'), path.join(dir, 'storage.rules'));
   fs.copyFileSync(path.join(repo, 'firestore.indexes.json'), path.join(dir, 'firestore.indexes.json'));
   fs.writeFileSync(path.join(dir, 'firebase.json'), JSON.stringify(firebaseJson(c), null, 2));
   fs.writeFileSync(path.join(dir, '.firebaserc'), JSON.stringify({ projects: { default: c.projectId } }, null, 2));
