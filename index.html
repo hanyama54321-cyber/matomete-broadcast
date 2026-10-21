@@ -373,7 +373,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
 <header class="topbar">
   <h1>周知 一括投稿ツール</h1>
-  <span class="ver">Ver.0.5.0</span>
+  <span class="ver">Ver.0.6.0</span>
   <span id="mode-badge" class="mode-badge">本番に接続</span>
 </header>
 <div id="emu-banner" class="emu-banner" hidden>エミュレーター(このPC内のテスト環境)に接続しています。本番の Firebase には書き込みません。</div>
@@ -391,6 +391,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     <button type="button" class="tab" role="tab" id="tab-send" aria-selected="true" aria-controls="pane-send" data-tab="send">お知らせを送る</button>
     <button type="button" class="tab" role="tab" id="tab-sent" aria-selected="false" aria-controls="pane-sent" data-tab="sent">送ったお知らせ</button>
     <button type="button" class="tab" role="tab" id="tab-man" aria-selected="false" aria-controls="pane-man" data-tab="man">手順書を送る</button>
+    <button type="button" class="tab" role="tab" id="tab-kyt" aria-selected="false" aria-controls="pane-kyt" data-tab="kyt">KYT を送る</button>
   </nav>
 
   <div id="pane-send" role="tabpanel" aria-labelledby="tab-send">
@@ -683,6 +684,60 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
       </div>
     </section>
   </div>
+
+  <!-- KYT を送る(0.6.0。並び・既定値は各社アプリの「新しいシナリオ」と同じ) -->
+  <div id="pane-kyt" role="tabpanel" aria-labelledby="tab-kyt" hidden>
+    <section class="step" aria-labelledby="h-kyt">
+      <h2 id="h-kyt">KYT のシナリオを送る(1回だけ書く)</h2>
+      <p class="hint">ログインしている社に、同じ KYT(危険予知トレーニング)のシナリオを新しく追加します。プッシュ通知は飛びません(各社アプリの通知センターと KYT タブに新着として出ます)。シナリオの訂正・削除は各社アプリで行ってください。</p>
+      <fieldset class="lockable" id="kyt-fields">
+        <div class="form-grid">
+          <div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-k-img">場面の絵</span>
+              <div class="chips" id="k-imgs" role="group" aria-labelledby="lbl-k-img"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="k-title">タイトル<span class="req">*</span></label>
+              <input type="text" id="k-title" class="input" placeholder="例: 冷凍庫前での急ぎ搬入" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="k-desc">状況説明<span class="req">*</span></label>
+              <textarea id="k-desc" class="input" rows="4" placeholder="どのような状況か説明してください..."></textarea>
+            </div>
+            <div class="form-group">
+              <span class="form-label" id="lbl-k-diff">難易度</span>
+              <div class="prio-row" id="k-diffs" role="group" aria-labelledby="lbl-k-diff"></div>
+            </div>
+          </div>
+          <div>
+            <div class="form-group">
+              <span class="form-label">危険ポイント(正解の選択肢)<span class="req">*</span></span>
+              <div class="sub-hint" style="margin-top:0;margin-bottom:6px">3〜5個(空欄は数えません)。同じものは不可。「特に危険はない」はクイズで自動で足されるので入れられません。</div>
+              <div id="k-hints"></div>
+              <div class="field-error" id="k-hint-error" hidden></div>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <div class="rd-sub">送る社</div>
+      <div id="k-cos"></div>
+      <div class="field-error" id="k-why" hidden></div>
+      <div class="inline-row">
+        <button type="button" class="btn danger" id="btn-kyt-confirm" disabled>確認へ</button>
+      </div>
+    </section>
+
+    <section class="step" id="kyt-result-section" aria-labelledby="h-kyt-result" hidden>
+      <h2 id="h-kyt-result">KYT の追加の結果</h2>
+      <div class="rs-meta" id="k-rs-meta"></div>
+      <ul class="rd-list" id="k-rs-rows"></ul>
+      <div class="sub-hint">失敗した社は「同じIDで再送」できます。既に追加できている社には何もしないので、二重になりません。</div>
+      <div class="rs-actions">
+        <button type="button" class="btn ghost" id="btn-kyt-new">新しいシナリオを作る(入力を消す)</button>
+      </div>
+    </section>
+  </div>
 </main>
 
 <div class="actionbar" id="actionbar" hidden>
@@ -781,6 +836,37 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   </div>
 </dialog>
 
+<dialog class="confirm" id="kyt-dialog" aria-labelledby="kc-title">
+  <div class="cf-wrap">
+    <div class="cf-head">
+      <h3 id="kc-title">KYT の追加の確認</h3>
+      <div class="cf-meta" id="kc-meta"></div>
+    </div>
+    <div class="cf-body">
+      <div class="cf-grid" id="kc-grid"></div>
+      <div class="cf-skip">プッシュ通知は飛びません。各社アプリの通知センターと KYT タブに、新しいシナリオとして出ます。クイズでは、危険ポイントに「特に危険はない」が足されて、順番を混ぜて並びます。</div>
+      <div id="kc-skips"></div>
+    </div>
+    <div class="cf-foot">
+      <div class="cf-irrev">送信後は取り消せません(消すときは各社アプリで)。</div>
+      <button type="button" class="btn ghost" id="kc-cancel">キャンセル</button>
+      <button type="button" class="btn danger" id="kc-send">送信する</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="confirm small" id="kyt-reset-dialog" aria-labelledby="kr-title">
+  <div class="cf-wrap">
+    <div class="cf-head"><h3 id="kr-title">新しいシナリオを作りますか？</h3></div>
+    <div class="cf-body">入力したシナリオの内容と、いま表示している結果を消します(各社に追加したシナリオは消えません)。</div>
+    <div class="cf-foot">
+      <span style="flex:1"></span>
+      <button type="button" class="btn ghost" id="kr-cancel">やめる</button>
+      <button type="button" class="btn" id="kr-ok">消して新しく作る</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog class="confirm small" id="reset-dialog" aria-labelledby="rd-title">
   <div class="cf-wrap">
     <div class="cf-head"><h3 id="rd-title">新しいお知らせを作りますか？</h3></div>
@@ -802,7 +888,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   'use strict';
 
   /* ===== 基本設定 ===== */
-  const TOOL_VERSION = '0.5.0';
+  const TOOL_VERSION = '0.6.0';
   // ログイン方式は3社共通(各社 index.html の AUTH_EMAIL_DOMAIN / AUTH_PW_SUFFIX と一致させること)
   const AUTH_EMAIL_DOMAIN = '@matomete.local';
   const AUTH_PW_SUFFIX    = '_mtm';
@@ -915,7 +1001,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   // 使えない開き方のときは、Firebase を初期化せず、ログイン欄・入力欄・送信ボタン・確認画面を画面から取り除く。
   // イベントも一切登録しないので、ログインも送信もできない(案内の文だけが残る)
   function lockOut(title, lines) {
-    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#fix-dialog', '#man-dialog', '#man-reset-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
+    ['#app', '#actionbar', '#confirm-dialog', '#remind-dialog', '#fix-dialog', '#man-dialog', '#man-reset-dialog', '#kyt-dialog', '#kyt-reset-dialog', '#reset-dialog', '#emu-banner'].forEach(sel => {
       const node = $(sel);
       if (node) node.remove();
     });
@@ -1442,6 +1528,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     renderEditPanel();
     renderDelPanel();
     renderMan();
+    renderKyt();
   }
 
   /* ===== 確認画面 ===== */
@@ -1940,7 +2027,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     $('#rd-cancel').addEventListener('click', () => $('#reset-dialog').close());
     $('#rd-ok').addEventListener('click', resetForNew);
     window.addEventListener('beforeunload', e => {
-      if (writing || remindWriting || fixWriting || manWriting) { e.preventDefault(); e.returnValue = ''; }
+      if (writing || remindWriting || fixWriting || manWriting || kytWriting) { e.preventDefault(); e.returnValue = ''; }
     });
   }
 
@@ -1961,7 +2048,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   let remindWriting = false;
 
   function setTab(name) {
-    for (const t of ['send', 'sent', 'man']) {
+    for (const t of ['send', 'sent', 'man', 'kyt']) {
       $('#tab-' + t).setAttribute('aria-selected', String(t === name));
       $('#pane-' + t).hidden = t !== name;
     }
@@ -2360,7 +2447,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   let fixWriting = false;
 
   function anyWriting() {
-    return writing || remindWriting || fixWriting || manWriting;
+    return writing || remindWriting || fixWriting || manWriting || kytWriting;
   }
 
   function isBroadcastId(id) {
@@ -3315,6 +3402,317 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
     renderMan();
   }
 
+  /* ===== KYT を送る(0.6.0) =====
+     各社アプリの追加(saveKytScenario() の add)と同じ7項目を、kyt/{id} に「無ければ作る」(writeOnce)で社ごとに順番に書く。
+     ID は3社で同じ(makeBroadcastId())。プッシュ通知は無い(各社アプリの通知センター・タブの新着は createdAt で決まる)。
+     img は各社アプリの一覧・クイズで HTML のまま埋め込まれるため、KYT_IMGS と完全に同じ文字列しか書かない。
+     クイズは hints に「特に危険はない」を足して並べ、hints に含まれるかで正誤を決めるため、hints の重複と「特に危険はない」は止める */
+  // 各社アプリ KYT_IMGS と同じ12種・同じ文字列(❄️ 🌧️ ⚠️ は異体字セレクタ U+FE0F 付き。既定 🏪)
+  const KYT_IMGS = ['🏪', '🌅', '🛒', '❄️', '🚙', '🌧️', '⏰', '🚛', '🏢', '📦', '🚦', '⚠️'];
+  const KYT_DIFFS = [
+    { id: '低', icon: '🟢' },
+    { id: '中', icon: '🔵' },
+    { id: '高', icon: '🔴' },
+  ];
+  const KYT_NO_DANGER = '特に危険はない'; // 各社アプリ startKYT() がクイズの選択肢に足す文字
+  const KYT_HINT_INPUTS = 5;
+  const KYT_KEYS = ['title', 'desc', 'img', 'difficulty', 'hints', 'createdAt', 'updatedAt'];
+
+  const kyt = {
+    img: '🏪', difficulty: '中',
+    wantSend: {},
+    session: null,   // 送信後: { id, content, results: { key: { state, note } } }
+  };
+  let kytConfirm = null;
+  let kytWriting = false;
+
+  function renderKytImgs() {
+    const box = $('#k-imgs');
+    box.textContent = '';
+    KYT_IMGS.forEach((e, i) => box.append(el('button', {
+      type: 'button', class: 'chip', text: e, style: 'font-size:22px;padding:4px 9px',
+      'aria-label': `場面の絵 ${e}`, dataset: { kimg: String(i) }, 'aria-pressed': String(kyt.img === e),
+    })));
+  }
+
+  function renderKytDiffs() {
+    const box = $('#k-diffs');
+    box.textContent = '';
+    KYT_DIFFS.forEach(d => box.append(el('button', {
+      type: 'button', class: 'prio-btn', 'aria-label': `難易度 ${d.id}`,
+      dataset: { kdiff: d.id }, 'aria-pressed': String(kyt.difficulty === d.id),
+    }, el('span', { text: d.icon, 'aria-hidden': 'true' }), el('span', { text: d.id }))));
+  }
+
+  function buildKytHintInputs() {
+    const box = $('#k-hints');
+    box.textContent = '';
+    for (let i = 0; i < KYT_HINT_INPUTS; i++) {
+      box.append(el('div', { class: 'inline-row', style: 'margin-top:0;margin-bottom:6px;flex-wrap:nowrap' },
+        el('span', { class: 'sub-hint', style: 'margin-top:0;width:1.2em', text: String(i + 1) }),
+        el('input', { type: 'text', class: 'input', dataset: { khint: String(i) }, placeholder: '危険ポイントを入力...', autocomplete: 'off', 'aria-label': `危険ポイント ${i + 1}` })));
+    }
+  }
+
+  function readKyt() {
+    return {
+      title: $('#k-title').value.trim(),
+      desc: $('#k-desc').value.trim(),
+      img: kyt.img,
+      difficulty: kyt.difficulty,
+      // 各社アプリ saveKytScenario() と同じ: 前後の空白を除き、空欄を外す
+      hints: [...document.querySelectorAll('#k-hints [data-khint]')].map(i => i.value.trim()).filter(Boolean),
+    };
+  }
+
+  // 危険ポイントの問題(無ければ [])
+  function kytHintProblems(hints) {
+    const errs = [];
+    if (hints.length < 3) errs.push('危険ポイントは3個以上入れてください');
+    if (hints.length > KYT_HINT_INPUTS) errs.push(`危険ポイントは${KYT_HINT_INPUTS}個までです`);
+    const dup = hints.filter((h, i) => hints.indexOf(h) !== i);
+    if (dup.length) errs.push(`同じ危険ポイントがあります(${[...new Set(dup)].join('、')})`);
+    if (hints.includes(KYT_NO_DANGER)) errs.push(`「${KYT_NO_DANGER}」はクイズで自動で足される外れの選択肢なので入れられません`);
+    return errs;
+  }
+
+  function kytEligibility(co) {
+    if (co.phase === 'init' || co.phase === 'busy') return '確認中です';
+    if (co.phase !== 'ready') return co.msgKind === 'blocked' ? '書き込めないコードです(ログイン欄を参照)' : '未ログイン';
+    return '';
+  }
+
+  function kytTargets() {
+    return cos.filter(co => !kytEligibility(co) && kyt.wantSend[co.def.key] !== false);
+  }
+
+  function renderKyt() {
+    if (!booted) return;
+    const locked = !!kyt.session;
+    $('#kyt-fields').disabled = locked || kytWriting;
+    const content = readKyt();
+    const hintErrs = kytHintProblems(content.hints);
+    const anyHint = content.hints.length > 0;
+    $('#k-hint-error').textContent = anyHint ? hintErrs.join(' / ') : '';
+    $('#k-hint-error').hidden = !anyHint || !hintErrs.length;
+    const box = $('#k-cos');
+    box.textContent = '';
+    for (const co of cos) {
+      const why = kytEligibility(co);
+      box.append(el('label', { class: 'pick-row' },
+        el('input', { type: 'checkbox', dataset: { kpick: co.def.key }, checked: !why && kyt.wantSend[co.def.key] !== false, disabled: !!why || locked }),
+        el('span', {}, el('b', { text: co.def.label }), why ? el('span', { class: 'why', text: why }) : null)));
+    }
+    const problems = [];
+    if (!content.title) problems.push('タイトルを入力してください');
+    if (!content.desc) problems.push('状況説明を入力してください');
+    problems.push(...hintErrs);
+    if (!kytTargets().length) problems.push('送る社がありません(ログインと「送る社」を確認してください)');
+    const showWhy = !locked && (content.title || content.desc || anyHint) && problems.length;
+    $('#k-why').textContent = showWhy ? problems.join(' / ') : '';
+    $('#k-why').hidden = !showWhy;
+    const n = kytTargets().length;
+    const btn = $('#btn-kyt-confirm');
+    btn.textContent = n ? `確認へ(${n}社)` : '確認へ';
+    btn.disabled = locked || anyWriting() || problems.length > 0;
+  }
+
+  function buildKytPayload(content) {
+    const FV = firebase.firestore.FieldValue;
+    return {
+      title: content.title,
+      desc: content.desc,
+      img: content.img,
+      difficulty: content.difficulty,
+      hints: content.hints.slice(),
+      createdAt: FV.serverTimestamp(),
+      updatedAt: FV.serverTimestamp(),
+    };
+  }
+
+  // 書き込む直前の形の確認(ルールは項目の形を検査しないため)
+  function checkKytPayload(p) {
+    const keys = Object.keys(p).sort().join(',');
+    if (keys !== KYT_KEYS.slice().sort().join(',')) throw new Error('書き込む項目が想定と違います');
+    const isStr = v => typeof v === 'string';
+    const bad = [];
+    if (!isStr(p.title) || !p.title || p.title !== p.title.trim()) bad.push('title');
+    if (!isStr(p.desc) || !p.desc || p.desc !== p.desc.trim()) bad.push('desc');
+    if (!KYT_IMGS.includes(p.img)) bad.push('img');
+    if (!KYT_DIFFS.some(d => d.id === p.difficulty)) bad.push('difficulty');
+    if (!Array.isArray(p.hints) || !p.hints.every(h => isStr(h) && h && h === h.trim()) || kytHintProblems(p.hints).length) bad.push('hints');
+    for (const k of ['createdAt', 'updatedAt']) if (!(p[k] instanceof firebase.firestore.FieldValue)) bad.push(k);
+    if (bad.length) throw new Error('書き込む内容の形が正しくありません: ' + bad.join(', '));
+  }
+
+  function openKytConfirm(retryKeys) {
+    if (anyWriting()) return;
+    let content, targets, id;
+    if (retryKeys) {
+      content = kyt.session.content;
+      id = kyt.session.id;
+      targets = cos.filter(co => retryKeys.includes(co.def.key));
+    } else {
+      content = readKyt();
+      if (!content.title || !content.desc || kytHintProblems(content.hints).length) return;
+      targets = kytTargets();
+      id = makeBroadcastId();
+    }
+    if (!targets.length) return;
+    kytConfirm = { id, content, targets, retry: !!retryKeys };
+    $('#kc-title').textContent = retryKeys ? 'KYT の再送の確認(同じID)' : 'KYT の追加の確認';
+    $('#kc-meta').textContent = `一括送信ID: ${id} ・ 現在時刻: ${fmtNow()} ・ 送信先: ${targets.map(c => c.def.label).join('・')}(${targets.length}社)`;
+    const grid = $('#kc-grid');
+    grid.textContent = '';
+    for (const co of targets) {
+      grid.append(el('div', { class: 'co-card cf-co', style: `--co:${co.def.color}` },
+        el('div', { class: 'co-head' },
+          el('span', { class: 'co-name', text: co.def.label }),
+          el('span', { class: 'co-pid', text: co.def.config.projectId }),
+          el('span', { class: 'co-pid', style: 'margin-left:auto', text: `${co.login.code} でログイン中` })),
+        el('div', { class: 'co-body' },
+          el('dl', { class: 'cf-dl' },
+            el('dt', { text: 'タイトル' }), el('dd', { text: `${content.img} ${content.title}` }),
+            el('dt', { text: '状況説明' }), el('dd', { text: content.desc }),
+            el('dt', { text: '難易度' }), el('dd', { text: content.difficulty }),
+            el('dt', { text: '危険ポイント' }), el('dd', {}, el('ol', { style: 'margin:0;padding-left:1.4em' }, content.hints.map(h => el('li', { text: h })))),
+            el('dt', { text: '通知' }), el('dd', { text: 'プッシュ通知なし(通知センターに出る)' })))));
+    }
+    const skips = $('#kc-skips');
+    skips.textContent = '';
+    if (!retryKeys) {
+      const out = cos.filter(co => !targets.includes(co));
+      if (out.length) skips.append(el('div', { class: 'cf-skip', text: '送らない社: ' + out.map(co => `${co.def.label}(${kytEligibility(co) || '「送る社」を外している'})`).join(' / ') }));
+    } else {
+      skips.append(el('div', { class: 'cf-skip', text: '同じIDで送ります。既に追加できている社には何もしません。' }));
+    }
+    $('#kc-send').textContent = `送信する(${targets.length}社)`;
+    $('#kc-send').disabled = false;
+    $('#kyt-dialog').showModal();
+    $('#kc-cancel').focus();
+  }
+
+  function closeKytConfirm() {
+    kytConfirm = null;
+    const d = $('#kyt-dialog');
+    if (d.open) d.close();
+  }
+
+  async function onKytSend() {
+    const session = kytConfirm;
+    if (!session || anyWriting()) return;
+    $('#kc-send').disabled = true;
+    closeKytConfirm();
+    kytWriting = true;
+    if (!session.retry) {
+      kyt.session = { id: session.id, content: session.content, results: {} };
+      for (const co of cos) {
+        kyt.session.results[co.def.key] = session.targets.includes(co)
+          ? { state: 'waiting', note: '' }
+          : { state: 'skipped', note: kytEligibility(co) || '「送る社」を外している' };
+      }
+    }
+    const results = kyt.session.results;
+    for (const co of session.targets) results[co.def.key] = { state: 'waiting', note: '' };
+    renderKyt();
+    renderKytResult();
+    // 社ごとに順番に。1社が失敗しても他社は止めない
+    for (const co of session.targets) {
+      const r = results[co.def.key];
+      r.state = 'sending';
+      renderKytResult();
+      try {
+        if (co.phase !== 'ready') throw new Error('未ログインになりました');
+        if (!isBroadcastId(session.id)) throw new Error('ID の形が正しくありません');
+        const payload = buildKytPayload(session.content);
+        checkKytPayload(payload);
+        const res = await withTimeout(writeOnce(co, session.id, payload, 'kyt'), WRITE_TIMEOUT_MS);
+        r.note = res.created ? '追加しました' : '既に追加されています(何もしていません)';
+        r.state = 'success';
+      } catch (e) {
+        console.error(`[${co.def.label}] KYT の追加に失敗:`, e);
+        r.state = 'failed';
+        r.note = errText(e);
+      }
+      renderKytResult();
+    }
+    kytWriting = false;
+    renderAll();
+    renderKytResult();
+  }
+
+  function renderKytResult() {
+    const s = kyt.session;
+    $('#kyt-result-section').hidden = !s;
+    if (!s) return;
+    $('#k-rs-meta').textContent = `一括送信ID: ${s.id} ・ ${s.content.img} ${s.content.title}`;
+    const box = $('#k-rs-rows');
+    box.textContent = '';
+    for (const co of cos) {
+      const r = s.results[co.def.key];
+      const cls = { success: 'st-success', failed: 'st-failed', skipped: 'st-skipped' }[r.state] || 'st-sending';
+      const label = { success: '成功', failed: '失敗', skipped: '対象外', waiting: '待機中', sending: '送信中…' }[r.state];
+      box.append(el('li', {},
+        el('span', { class: 'rs-co', style: `--co:${co.def.color}`, text: co.def.label }),
+        el('span', { class: cls }, `${label}${r.note ? ': ' + r.note : ''}`,
+          r.state === 'failed' ? el('button', { type: 'button', class: 'btn ghost small', style: 'margin-left:8px', dataset: { kytRetry: co.def.key }, disabled: kytWriting || co.phase !== 'ready', text: '同じIDで再送' }) : null)));
+    }
+    $('#btn-kyt-new').disabled = kytWriting;
+  }
+
+  function resetKyt() {
+    if (kytWriting) return;
+    kyt.session = null;
+    kyt.img = '🏪';
+    kyt.difficulty = '中';
+    $('#k-title').value = '';
+    $('#k-desc').value = '';
+    buildKytHintInputs();
+    renderKytImgs();
+    renderKytDiffs();
+    renderKytResult();
+    renderKyt();
+  }
+
+  function wireKyt() {
+    renderKytImgs();
+    renderKytDiffs();
+    buildKytHintInputs();
+    $('#tab-kyt').addEventListener('click', () => setTab('kyt'));
+    ['#k-title', '#k-desc'].forEach(sel => $(sel).addEventListener('input', renderKyt));
+    $('#k-hints').addEventListener('input', renderKyt);
+    $('#k-imgs').addEventListener('click', e => {
+      const b = e.target.closest('[data-kimg]');
+      if (!b) return;
+      kyt.img = KYT_IMGS[Number(b.dataset.kimg)]; // ボタンの文字ではなく一覧の値を使う(文字列を必ず KYT_IMGS と同じにする)
+      renderKytImgs();
+    });
+    $('#k-diffs').addEventListener('click', e => {
+      const b = e.target.closest('[data-kdiff]');
+      if (!b) return;
+      kyt.difficulty = b.dataset.kdiff;
+      renderKytDiffs();
+    });
+    $('#k-cos').addEventListener('change', e => {
+      const b = e.target.closest('[data-kpick]');
+      if (!b) return;
+      kyt.wantSend[b.dataset.kpick] = b.checked;
+      renderKyt();
+    });
+    $('#btn-kyt-confirm').addEventListener('click', () => openKytConfirm(null));
+    $('#k-rs-rows').addEventListener('click', e => {
+      const b = e.target.closest('[data-kyt-retry]');
+      if (b && !b.disabled) openKytConfirm([b.dataset.kytRetry]);
+    });
+    $('#kc-cancel').addEventListener('click', closeKytConfirm);
+    $('#kyt-dialog').addEventListener('cancel', e => { e.preventDefault(); closeKytConfirm(); }); // Esc もキャンセル扱い
+    $('#kc-send').addEventListener('click', onKytSend);
+    $('#btn-kyt-new').addEventListener('click', () => { if (!kytWriting) $('#kyt-reset-dialog').showModal(); });
+    $('#kr-cancel').addEventListener('click', () => $('#kyt-reset-dialog').close());
+    $('#kr-ok').addEventListener('click', () => { $('#kyt-reset-dialog').close(); resetKyt(); });
+    renderKyt();
+  }
+
   /* ===== 起動 ===== */
   if (EMULATOR) {
     $('#emu-banner').hidden = false;
@@ -3330,6 +3728,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
   wireSent();
   wireFix();
   wireMan();
+  wireKyt();
   $('#app').hidden = false;
   $('#actionbar').hidden = false;
   booted = true;
@@ -3337,7 +3736,7 @@ dialog.confirm.small { width: min(520px, calc(100vw - 32px)); }
 
   if (EMULATOR) {
     // 検証用のつなぎ口(エミュレーター接続のときだけ公開する)
-    window.__broadcastTest = { cos, writeOnce, buildPayload, checkPayload, getBroadcast: () => broadcast };
+    window.__broadcastTest = { cos, writeOnce, buildPayload, checkPayload, getBroadcast: () => broadcast, buildKytPayload, checkKytPayload, KYT_IMGS };
   }
 })();
 </script>

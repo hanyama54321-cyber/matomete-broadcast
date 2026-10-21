@@ -5,7 +5,7 @@
 //   node emulator/inspect.js fnlog                       各社の onAnnouncementNotify の実行回数と、送信まで進んだ回数、sendUnreadReminder が送信まで進んだ回数(emulator.log から)
 //   node emulator/inspect.js tokens                      各社の架空の通知トークンの件数
 //   node emulator/inspect.js storage                     各社の Storage エミュレーターの manuals/ の下のファイル
-// list・get・compare は既定で announcements を見る。--col manuals を付けると手順書(manuals)を見る
+// list・get・compare は既定で announcements を見る。--col manuals で手順書、--col kyt で KYT のシナリオを見る
 // key は hiline / alogi / meiho
 'use strict';
 
@@ -14,10 +14,10 @@ const path = require('path');
 const { COMPANIES, workDir, argValue } = require('./config');
 const { company, call, docsBase, typeOf, plain } = require('./rest');
 
-// list・get・compare で見るコレクション(既定はお知らせ。--col manuals で手順書)
+// list・get・compare で見るコレクション(既定はお知らせ。--col manuals で手順書、--col kyt で KYT)
 const COL = argValue('--col', 'announcements');
-if (!['announcements', 'manuals'].includes(COL)) {
-  console.error('--col は announcements か manuals です');
+if (!['announcements', 'manuals', 'kyt'].includes(COL)) {
+  console.error('--col は announcements・manuals・kyt のどれかです');
   process.exit(1);
 }
 
@@ -43,6 +43,10 @@ async function cmdList() {
       const f = d.fields || {};
       const v = k => (f[k] ? plain(f[k]) : undefined);
       const id = d.name.split('/').pop();
+      if (COL === 'kyt') {
+        console.log(`  ${id}  img=${v('img')}  difficulty=${v('difficulty')}  hints=${(v('hints') || []).length}個  項目数=${Object.keys(f).length}  「${short(v('title'))}」`);
+        continue;
+      }
       const who = COL === 'manuals' ? `${v('uploaderUid')}/${v('uploaderName')}` : `${v('authorUid')}/${v('authorName')}`;
       console.log(`  ${id}  author=${who}  mustRead=${v('mustRead')}  notifiedAt=${f.notifiedAt ? 'あり' : 'なし'}  項目数=${Object.keys(f).length}  「${short(v('title'))}」`);
     }
@@ -140,7 +144,7 @@ async function cmdTokens() {
   else if (cmd === 'tokens') await cmdTokens();
   else if (cmd === 'storage') await cmdStorage();
   else {
-    console.log('使い方: node emulator/inspect.js list | get <key> <id> | compare <key> <idA> <idB> | fnlog | tokens | storage   (list・get・compare は --col manuals で手順書)');
+    console.log('使い方: node emulator/inspect.js list | get <key> <id> | compare <key> <idA> <idB> | fnlog | tokens | storage   (list・get・compare は --col manuals で手順書、--col kyt で KYT)');
     process.exitCode = 1;
   }
 })().catch(e => { console.error(e.message); process.exit(1); });
